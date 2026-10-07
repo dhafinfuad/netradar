@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+{% from 'components/button.html' import btn, btn_delete %}
+{% from 'components/status.html' import status_badge %}
+{% from 'components/modal.html' import modal %}
+
+{% block content %}
+<div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div class="flex items-center">
+        <a href="{{ back_url | default('/devices') }}" class="text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 mr-3">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        </a>
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">{{ device.hostname }}</h1>
+            <p class="text-xs sm:text-sm text-gray-500 mt-1">Detail spesifikasi dan riwayat perangkat</p>
+        </div>
+    </div>
+    
+    <div class="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+        {% if current_user.is_admin %}
+        {{ btn('Edit Perangkat', variant='secondary', href='/devices/' ~ device.id ~ '/edit' ~ ('?source=' ~ source if source else ''), icon='<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>', extra_class='w-full sm:w-auto justify-center') }}
+        <button type="button" onclick="document.getElementById('deleteDeviceModal').classList.remove('hidden')"
+            class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-red-500/30 dark:border-red-500/30 text-red-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20 hover:bg-red-600 dark:hover:bg-red-700/50 focus:ring-indigo-500">
+            <span class="material-symbols-outlined text-[18px] mr-1">delete</span>
+            Hapus Perangkat
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+    
+    <!-- Informasi Utama -->
+    <div id="left-info-column" class="lg:col-span-2 space-y-6">
+        
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Informasi Perangkat</h3>
+            </div>
+            <div class="p-6">
+                <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Tipe Perangkat</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white flex items-center">
+                            {{ device.device_type }}
+                        </dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                            {{ status_badge(device.status) }}
+                        </dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Merek & Model</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ device.brand or '-' }} {{ device.model or '' }}</dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Seksi / Lokasi</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ device.seksi or '-' }}</dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Terakhir Dilihat</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                            {% if device.last_seen %}
+                            {{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                            Belum pernah
+                            {% endif %}
+                        </dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Terdaftar Pada</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                            {% if device.created_at %}
+                            {{ device.created_at.strftime('%Y-%m-%d') }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Konfigurasi Jaringan</h3>
+            </div>
+            <div class="p-6">
+                <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">IP Address</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white font-mono">{{ device.ip_address or 'DHCP / None' }}</dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">MAC Address</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white font-mono uppercase">{{ device.mac_address or 'None' }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        {% if device.device_type in ['Switch', 'Jaringan'] %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white flex items-center"><span class="material-symbols-outlined text-[20px] mr-2">router</span> Live SNMP Data</h3>
+                <span id="snmp_status" class="text-xs font-semibold px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-full">Menghubungkan...</span>
+            </div>
+            <div class="p-6">
+                <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
+                    <div class="sm:col-span-2">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">System Description</dt>
+                        <dd id="snmp_sys_desc" class="mt-1 text-sm text-gray-900 dark:text-white font-mono whitespace-pre-wrap">-</dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">System Uptime</dt>
+                        <dd id="snmp_uptime" class="mt-1 text-sm text-gray-900 dark:text-white">-</dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Port Status</dt>
+                        <dd id="snmp_ports" class="mt-1 text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                            <span class="text-green-600 font-bold" id="snmp_ports_up">0</span> Up / 
+                            <span class="text-red-600 font-bold" id="snmp_ports_down">0</span> Down
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                fetch('/api/v1/devices/{{ device.id }}/snmp')
+                    .then(response => response.json())
+                    .then(data => {
+                        const statusEl = document.getElementById('snmp_status');
+                        if(data.success) {
+                            statusEl.className = "text-xs font-semibold px-2.5 py-1 bg-green-100 text-green-800 rounded-full";
+                            statusEl.innerText = "Connected";
+                            document.getElementById('snmp_sys_desc').innerText = data.data.sys_desc || 'N/A';
+                            document.getElementById('snmp_uptime').innerText = data.data.uptime_str || 'N/A';
+                            document.getElementById('snmp_ports_up').innerText = data.data.ports_up || '0';
+                            document.getElementById('snmp_ports_down').innerText = data.data.ports_down || '0';
+                        } else {
+                            statusEl.className = "text-xs font-semibold px-2.5 py-1 bg-red-100 text-red-800 rounded-full";
+                            statusEl.innerText = "Error";
+                            document.getElementById('snmp_sys_desc').innerText = data.error || 'Failed to fetch SNMP';
+                        }
+                    })
+                    .catch(error => {
+                        const statusEl = document.getElementById('snmp_status');
+                        statusEl.className = "text-xs font-semibold px-2.5 py-1 bg-red-100 text-red-800 rounded-full";
+                        statusEl.innerText = "Error";
+                        document.getElementById('snmp_sys_desc').innerText = "Network Error: " + error.message;
+                    });
+            });
+        </script>
+        {% endif %}
+        
+        <!-- Spesifikasi Hardware -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Spesifikasi Hardware</h3>
+                {% if spec %}
+                <span class="text-xs text-gray-500 dark:text-gray-400">Diperbarui: {{ spec.collected_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                {% endif %}
+            </div>
+            <div class="p-6">
+                {% if spec %}
+                <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Prosesor (CPU)</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ spec.cpu_model or 'Tidak diketahui' }} <br><span class="text-gray-500 text-xs">{{ spec.cpu_brand or '-' }}</span></dd>
+                    </div>
+                    
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Memori (RAM)</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ spec.ram_type or '-' }} | {{ spec.ram_total or 'Tidak diketahui' }} <br><span class="text-gray-500 text-xs">{{ spec.ram_brand or '-' }}</span></dd>
+                    </div>
+
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Penyimpanan (Storage)</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ spec.storage_type or '-' }} | {{ spec.storage_capacity or 'Tidak diketahui' }} <br><span class="text-gray-500 text-xs">{{ spec.storage_brand or '-' }}</span></dd>
+                    </div>
+
+                    <div class="sm:col-span-1">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Sistem Operasi (OS)</dt>
+                        <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ spec.os_version or 'Tidak diketahui' }}</dd>
+                    </div>
+                </dl>
+                {% else %}
+                <div class="text-center py-6">
+                    <span class="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-600 mb-2">memory</span>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Spesifikasi hardware belum terekam.</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Gunakan IP Radar Script v2 di komputer klien untuk mulai mencatat spesifikasi.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar / Riwayat -->
+    <div class="lg:col-span-1">
+        <div id="right-sidebar-card" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex-none">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Riwayat Kepemilikan</h3>
+            </div>
+            <div id="history-scroll-container" class="p-6 flex-1 overflow-y-auto min-h-0">
+                {% if history %}
+                <ul class="-mb-8">
+                    {% for h in history %}
+                    <li>
+                        <div class="relative pb-8">
+                            {% if not loop.last %}
+                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-700" aria-hidden="true"></span>
+                            {% endif %}
+                            <div class="relative flex space-x-3">
+                                <div>
+                                    <span class="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center ring-8 ring-white dark:ring-gray-800">
+                                        <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                    </span>
+                                </div>
+                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                                            {% if h.to_user_id %}
+                                            Di-assign ke <span class="font-semibold text-gray-900 dark:text-white">{{ users_map.get(h.to_user_id) or (h.to_user.name if h.to_user else ('User #' ~ h.to_user_id)) }}</span>
+                                            {% else %}
+                                            Kepemilikan <span class="font-semibold text-red-500 dark:text-red-400">Dilepas / Tanpa Pemilik</span>
+                                            {% endif %}
+                                        </p>
+                                        {% if h.seksi %}
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center">
+                                            <span class="material-symbols-outlined text-[14px] mr-1">corporate_fare</span>
+                                            Seksi: {{ h.seksi }}
+                                        </p>
+                                        {% endif %}
+                                        {% if h.notes %}
+                                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ h.notes }}</p>
+                                        {% endif %}
+                                    </div>
+                                     <div class="text-right text-sm whitespace-nowrap text-gray-500 flex flex-col items-end gap-1">
+                                         <time datetime="{{ h.changed_at.isoformat() }}">{{ h.changed_at.strftime('%Y-%m-%d') }}</time>
+                                         {% if current_user.is_admin %}
+                                         <button type="button" onclick="openDeleteHistoryModal({{ h.id }})" title="Hapus catatan riwayat ini" class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-500/10 flex items-center gap-0.5 text-xs">
+                                             <span class="material-symbols-outlined text-[16px]">delete</span>
+                                         </button>
+                                         {% endif %}
+                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Belum ada riwayat kepemilikan atau mutasi tercatat.</p>
+                {% endif %}
+            </div>
+            
+            <div class="px-6 py-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex justify-end flex-none mt-auto">
+                {% if current_user.is_admin %}
+                <button type="button" onclick="document.getElementById('assignUserModal').classList.remove('hidden')"
+                    class="inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">
+                    <span class="material-symbols-outlined text-[18px] mr-1">manage_accounts</span>
+                    Ubah / Setel Pemilik
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Assign Pemilik Perangkat -->
+<div id="assignUserModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="assign-modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="document.getElementById('assignUserModal').classList.add('hidden')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+            <form action="/devices/{{ device.id }}/assign" method="POST">
+                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">Ubah / Tetapkan Pemilik Perangkat</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="assign_user_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Pegawai (Pemilik Baru)</label>
+                            <select name="user_id" id="assign_user_id" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                <option value="">--- Tanpa Pemilik / Dilepas ---</option>
+                                {% for u in users %}
+                                <option value="{{ u.id }}" {% if device.user_id == u.id %}selected{% endif %}>{{ u.name }} {% if u.seksi %}({{ u.seksi }}){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="assign_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Catatan / Keterangan (Opsional)</label>
+                            <textarea name="notes" id="assign_notes" rows="3" placeholder="Contoh: Serah terima laptop untuk penugasan tim audit" class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 sm:px-6 flex flex-row-reverse gap-3">
+                    <button type="submit" class="inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">Simpan Perubahan</button>
+                    <button type="button" onclick="document.getElementById('assignUserModal').classList.add('hidden')" class="inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Hapus Perangkat -->
+{% call modal('deleteDeviceModal', 'Hapus Perangkat') %}
+<div class="sm:flex sm:items-start mb-6">
+    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
+        <span class="material-symbols-outlined text-red-600 dark:text-red-200">warning</span>
+    </div>
+    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+        <div class="mt-2">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Apakah Anda yakin ingin menghapus perangkat <strong class="text-gray-800 dark:text-gray-200">{{ device.hostname }}</strong>? Data yang dihapus tidak dapat dikembalikan dan IP yang terkait akan dibebaskan.
+            </p>
+        </div>
+    </div>
+</div>
+<form id="deleteForm" method="POST" action="/devices/{{ device.id }}/delete" hx-boost="false">
+    <div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row-reverse gap-2.5 sm:gap-3">
+        {{ btn('Ya, Hapus', variant='danger', type='submit', extra_class='w-full sm:w-auto') }}
+        <button type="button" onclick="document.getElementById('deleteDeviceModal').classList.add('hidden')"
+            class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Batal</button>
+    </div>
+</form>
+{% endcall %}
+
+<!-- Modal Hapus Riwayat Kepemilikan -->
+{% call modal('deleteHistoryModal', 'Hapus Riwayat Kepemilikan') %}
+<div class="sm:flex sm:items-start mb-6">
+    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
+        <span class="material-symbols-outlined text-red-600 dark:text-red-200">warning</span>
+    </div>
+    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+        <div class="mt-2">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Apakah Anda yakin ingin menghapus catatan riwayat kepemilikan ini? Data riwayat yang dihapus tidak dapat dikembalikan.
+            </p>
+        </div>
+    </div>
+</div>
+<form id="deleteHistoryForm" method="POST" action="" hx-boost="false">
+    <div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row-reverse gap-2.5 sm:gap-3">
+        {{ btn('Ya, Hapus', variant='danger', type='submit', extra_class='w-full sm:w-auto') }}
+        <button type="button" onclick="document.getElementById('deleteHistoryModal').classList.add('hidden')"
+            class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Batal</button>
+    </div>
+</form>
+{% endcall %}
+
+<script>
+    function openDeleteHistoryModal(historyId) {
+        const form = document.getElementById('deleteHistoryForm');
+        form.action = '/devices/history/' + historyId + '/delete';
+        form.setAttribute('action', '/devices/history/' + historyId + '/delete');
+        document.getElementById('deleteHistoryModal').classList.remove('hidden');
+    }
+
+    function syncSidebarHeight() {
+        const leftCol = document.getElementById('left-info-column');
+        const rightCard = document.getElementById('right-sidebar-card');
+        const historyList = document.getElementById('history-scroll-container');
+        
+        if (leftCol && historyList && rightCard && window.innerWidth >= 1024) {
+            const leftHeight = leftCol.offsetHeight;
+            rightCard.style.height = leftHeight + 'px';
+            
+            const header = rightCard.querySelector('.border-b');
+            const footer = rightCard.querySelector('.border-t');
+            const headerH = header ? header.offsetHeight : 64;
+            const footerH = footer ? footer.offsetHeight : 68;
+            
+            const availableHeight = leftHeight - headerH - footerH;
+            historyList.style.height = availableHeight + 'px';
+            historyList.style.maxHeight = availableHeight + 'px';
+        } else if (historyList && rightCard) {
+            rightCard.style.height = 'auto';
+            historyList.style.height = 'auto';
+            historyList.style.maxHeight = '450px';
+        }
+    }
+    window.addEventListener('load', syncSidebarHeight);
+    window.addEventListener('resize', syncSidebarHeight);
+    document.addEventListener('DOMContentLoaded', syncSidebarHeight);
+    setTimeout(syncSidebarHeight, 100);
+    setTimeout(syncSidebarHeight, 300);
+</script>
+{% endblock %}

@@ -1,0 +1,828 @@
+{% extends "base.html" %}
+{% from 'components/button.html' import btn %}
+{% from 'components/form.html' import form_input, form_select %}
+{% from 'components/modal.html' import modal %}
+
+{% block content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center justify-between">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-white">IP Address Management (IPAM)</h1>
+        <p class="text-gray-500 mt-1">Pemetaan Visual Alokasi IP Address per Seksi</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <button type="button" onclick="openExportModal()" id="btnExportIpam"
+            class="inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">
+            <span class="material-symbols-outlined text-[18px] mr-1.5">download</span>
+            Export CSV
+        </button>
+        {% if current_user.is_admin %}
+        {{ btn('Scan Jaringan', variant='green', id='btnScanJaringan', icon='
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        ') }}
+        {% endif %}
+        <script>
+            if (document.getElementById('btnScanJaringan')) {
+                document.getElementById('btnScanJaringan').addEventListener('click', function () {
+                    fetch('/api/v1/status/scan', { method: 'POST' })
+                        .then(res => res.json())
+                        .then(data => {
+                            window.location.href = window.location.pathname + '?msg=' + encodeURIComponent(data.message);
+                        })
+                        .catch(() => alert('Gagal memulai scan jaringan.'));
+                });
+            }
+        </script>
+    </div>
+</div>
+
+{% if error %}
+<div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-md">
+    <div class="flex">
+        <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clip-rule="evenodd" />
+            </svg>
+        </div>
+        <div class="ml-3">
+            <p class="text-sm text-red-700 font-medium">{{ error }}</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Filter & Search -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 mb-6">
+    <form action="/ipam" method="GET"
+        onsubmit="event.preventDefault(); filterIpamGrid(document.getElementById('ipamSearchInput').value);"
+        class="flex flex-col md:flex-row gap-4 items-center">
+        <!-- Search Bar -->
+
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full md:w-auto">
+            <label for="ipamSearchInput"
+                class="text-sm font-medium text-gray-700  dark:text-gray-300 whitespace-nowrap">Search :</label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <input type="text" name="q" id="ipamSearchInput" value="{{ q }}" oninput="filterIpamGrid(this.value)"
+                    onkeydown="if(event.key === 'Enter'){ event.preventDefault(); filterIpamGrid(this.value); }"
+                    placeholder="Cari IP (misal .23), Hostname, MAC, atau Status..."
+                    class="block w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400">
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full md:w-auto">
+            <label for="seksiFilter"
+                class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Filter :</label>
+            <div class="w-full sm:w-64">
+                <select name="seksi" id="seksiFilter"
+                    class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    onchange="this.form.submit()">
+                    <option value="">-- Semua Seksi --</option>
+                    {% for s in seksi_list %}
+                    <option value="{{ s }}" {% if selected_seksi==s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Legend & Status Filter -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 mb-6">
+    <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Keterangan & Filter Status</span>
+            <span class="text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">(Klik status untuk memfilter)</span>
+        </div>
+        <button type="button" id="resetStatusFilterBtn" onclick="setStatusFilter(null)"
+            class="hidden text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium items-center gap-1 transition-colors bg-indigo-50 dark:bg-indigo-900/30 px-2.5 py-1 rounded-md border border-indigo-200 dark:border-indigo-800">
+            <span class="material-symbols-outlined text-[14px]">filter_alt_off</span>
+            Reset Filter Status
+        </button>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap gap-2 text-xs sm:text-sm">
+        <!-- Free -->
+        <button type="button" onclick="setStatusFilter('free')" data-status-filter="free" title="Klik untuk memfilter status Free"
+            class="flex items-center justify-between sm:justify-start px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all cursor-pointer select-none">
+            <div class="flex items-center">
+                <div class="w-3.5 h-3.5 rounded bg-gray-200 dark:bg-gray-600 mr-2 border border-gray-300 dark:border-gray-500 flex-shrink-0"></div>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">Free</span>
+            </div>
+            <span id="count-status-free" class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">0</span>
+        </button>
+
+        <!-- Used -->
+        <button type="button" onclick="setStatusFilter('used')" data-status-filter="used" title="Klik untuk memfilter status Used"
+            class="flex items-center justify-between sm:justify-start px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 hover:bg-green-50/50 dark:hover:bg-green-950/20 transition-all cursor-pointer select-none">
+            <div class="flex items-center">
+                <div class="w-3.5 h-3.5 rounded bg-green-500 mr-2 border border-green-600 flex-shrink-0"></div>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">Used</span>
+            </div>
+            <span id="count-status-used" class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300">0</span>
+        </button>
+
+        <!-- Reserved -->
+        <button type="button" onclick="setStatusFilter('reserved')" data-status-filter="reserved" title="Klik untuk memfilter status Reserved"
+            class="flex items-center justify-between sm:justify-start px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-yellow-400 dark:hover:border-yellow-500 hover:bg-yellow-50/50 dark:hover:bg-yellow-950/20 transition-all cursor-pointer select-none">
+            <div class="flex items-center">
+                <div class="w-3.5 h-3.5 rounded bg-yellow-400 mr-2 border border-yellow-500 flex-shrink-0"></div>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">Reserved</span>
+            </div>
+            <span id="count-status-reserved" class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900/60 dark:text-yellow-300">0</span>
+        </button>
+
+        <!-- Conflict -->
+        <button type="button" onclick="setStatusFilter('conflict')" data-status-filter="conflict" title="Klik untuk memfilter status Conflict / Dibajak"
+            class="flex items-center justify-between sm:justify-start px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50/50 dark:hover:bg-red-950/20 transition-all cursor-pointer select-none">
+            <div class="flex items-center">
+                <div class="w-3.5 h-3.5 rounded bg-red-500 mr-2 border border-red-600 flex-shrink-0"></div>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">Conflict / Dibajak</span>
+            </div>
+            <span id="count-status-conflict" class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-300">0</span>
+        </button>
+
+        <!-- Unregistered -->
+        <button type="button" onclick="setStatusFilter('unregistered')" data-status-filter="unregistered" title="Klik untuk memfilter status Unregistered"
+            class="flex items-center justify-between sm:justify-start px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all cursor-pointer select-none">
+            <div class="flex items-center">
+                <div class="w-3.5 h-3.5 rounded bg-blue-500 mr-2 border border-blue-600 flex-shrink-0"></div>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">Unregistered</span>
+            </div>
+            <span id="count-status-unregistered" class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">0</span>
+        </button>
+
+        <!-- Salah Seksi -->
+        <button type="button" onclick="setStatusFilter('salah_seksi')" data-status-filter="salah_seksi" title="Klik untuk memfilter status Salah Seksi"
+            class="flex items-center justify-between sm:justify-start px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-950/20 transition-all cursor-pointer select-none">
+            <div class="flex items-center">
+                <div class="w-3.5 h-3.5 rounded bg-purple-500 mr-2 border border-purple-600 flex-shrink-0"></div>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">Salah Seksi</span>
+            </div>
+            <span id="count-status-salah_seksi" class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300">0</span>
+        </button>
+    </div>
+</div>
+
+<div id="ipam-grid-container" class="space-y-8"
+    hx-get="/ipam{% if request.query_params %}{% if 'seksi' in request.query_params %}?seksi={{ request.query_params.seksi | urlencode }}{% endif %}{% endif %}"
+    hx-select="#ipam-grid-container" hx-target="this" hx-swap="outerHTML" hx-trigger="every 30s">
+    {% for seksi, ips in grouped_ips.items() %}
+    {% if ips %}
+    <div
+        class="seksi-section-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div
+            class="px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between items-center">
+            <h2 class="text-base sm:text-lg font-semibold text-gray-800 dark:text-white">{{ seksi }}</h2>
+            <span class="text-xs sm:text-sm text-gray-500 font-mono">{{ ips|length }} IP Allocated</span>
+        </div>
+        <div class="p-3 sm:p-4">
+            <!-- Responsive Grid Layout (4 cols on mobile) -->
+            <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 lg:grid-cols-16 gap-1.5 sm:gap-2">
+                {% for ip in ips %}
+                {% if ip.status == 'used' %}
+                {% if ip.device_info and ip.device_info.seksi and ip.device_info.seksi != ip.seksi %}
+                {% if ip.device_info.status == 'offline' %}
+                {% set color_class = 'bg-purple-900 border-purple-700 text-white font-medium hover:bg-purple-800
+                dark:bg-purple-900 dark:border-purple-700 dark:text-white dark:hover:bg-purple-800 shadow-sm opacity-70' %}
+                {% else %}
+                {% set color_class = 'bg-purple-500 border-purple-600 text-white font-medium hover:bg-purple-600
+                dark:bg-purple-600 dark:border-purple-500 dark:text-white dark:hover:bg-purple-700 shadow-sm' %}
+                {% endif %}
+                {% elif ip.device_info and ip.device_info.status == 'offline' %}
+                {% set color_class = 'bg-emerald-900 border-emerald-700 text-white font-medium hover:bg-emerald-800
+                dark:bg-emerald-900 dark:border-emerald-700 opacity-70 shadow-sm' %}
+                {% else %}
+                {% set color_class = 'bg-green-500 border-green-600 text-white font-medium hover:bg-green-600
+                dark:bg-green-600 dark:border-green-500 dark:text-white dark:hover:bg-green-700 shadow-sm' %}
+                {% endif %}
+                {% elif ip.status == 'reserved' %}
+                {% set color_class = 'bg-yellow-400 border-yellow-500 text-black font-medium hover:bg-yellow-500
+                dark:bg-yellow-500 dark:border-yellow-600 dark:text-black dark:hover:bg-yellow-600 shadow-sm' %}
+                {% elif ip.status == 'unregistered' %}
+                {% set color_class = 'bg-blue-500 border-blue-600 text-white font-bold hover:bg-blue-600
+                dark:bg-blue-600
+                dark:border-blue-500 dark:text-white dark:hover:bg-blue-700 shadow-sm animate-pulse' %}
+                {% elif ip.status == 'conflict' %}
+                {% set color_class = 'bg-red-500 border-red-600 text-white font-bold hover:bg-red-600 dark:bg-red-600
+                dark:border-red-500 dark:text-white dark:hover:bg-red-700 shadow-md animate-pulse' %}
+                {% else %}
+                {% set color_class = 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200 dark:bg-gray-700
+                dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-600' %}
+                {% endif %}
+
+                {% set ip_last_octet = ip.ip_address.split('.')[-1] %}
+
+                {% if ip.status == 'free' %}
+                <a href="/devices/create?ip={{ ip.ip_address | urlencode }}&seksi={{ seksi | urlencode }}&source=ipam"
+                    onclick="window.location.href=this.href; return false;" data-ip="{{ ip.ip_address }}"
+                    data-status="{{ ip.status }}" data-hostname="" data-mac=""
+                    class="ip-grid-item relative rounded-lg border shadow-sm flex items-center justify-center h-11 w-full mx-auto font-mono text-xs sm:text-sm font-semibold transition-transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500 {{ color_class }}"
+                    title="{{ ip.ip_address }}">
+                    .{{ ip_last_octet }}
+                </a>
+                {% elif ip.status == 'used' %}
+                <button type="button"
+                    onclick="openIpModal('{{ ip.ip_address }}', '{{ ip.status }}', '{{ seksi }}', '{{ ip.device_info.hostname if ip.device_info else '' }}', '{{ ip.device_id or '' }}', '{{ ip.device_info.mac_address if ip.device_info else '' }}', '{{ ip.device_info.brand if ip.device_info else '' }}', '', '{{ ip.device_info.status if ip.device_info else 'unknown' }}', '{{ ip.device_info.last_seen.strftime('%Y-%m-%d %H:%M') if ip.device_info and ip.device_info.last_seen else 'N/A' }}', '{{ ip.device_info.seksi if ip.device_info else '' }}', '{{ ip.device_info.user.name if ip.device_info and ip.device_info.user else '' }}', '{{ ip.rogue_name or '' }}', '{{ ip.active_mac or '' }}')"
+                    data-ip="{{ ip.ip_address }}" data-status="{{ 'salah_seksi' if (ip.device_info and ip.device_info.seksi and ip.device_info.seksi != ip.seksi) else ip.status }}"
+                    data-hostname="{{ ip.device_info.hostname if ip.device_info else '' }}"
+                    data-mac="{{ ip.device_info.mac_address if ip.device_info else '' }}"
+                    class="ip-grid-item relative rounded-lg border shadow-sm flex items-center justify-center h-11 w-full mx-auto font-mono text-xs sm:text-sm font-semibold transition-transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500 {{ color_class }}"
+                    title="{{ ip.ip_address }}">
+                    .{{ ip_last_octet }}
+                </button>
+                {% else %}
+                <button type="button"
+                    onclick="openIpModal('{{ ip.ip_address }}', '{{ ip.status }}', '{{ seksi }}', '{{ ip.device_info.hostname if ip.device_info else '' }}', '{{ ip.device_id or '' }}', '{{ ip.device_info.mac_address if ip.device_info else '' }}', '{{ ip.device_info.mac_address if ip.device_info else '' }}', '{{ ip.reserved_for or '' }}', '', '', '{{ ip.device_info.seksi if ip.device_info else '' }}', '{{ ip.device_info.user.name if ip.device_info and ip.device_info.user else '' }}', '{{ ip.rogue_name or '' }}', '{{ ip.active_mac or '' }}')"
+                    data-ip="{{ ip.ip_address }}" data-status="{{ ip.status }}"
+                    data-hostname="{{ ip.device_info.hostname if ip.device_info else '' }}"
+                    data-mac="{{ ip.device_info.mac_address if ip.device_info else '' }}"
+                    class="ip-grid-item relative rounded-lg border shadow-sm flex items-center justify-center h-11 w-full mx-auto font-mono text-xs sm:text-sm font-semibold transition-transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500 {{ color_class }}"
+                    title="{{ ip.ip_address }}">
+                    .{{ ip_last_octet }}
+                </button>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<!-- Modal IP Details -->
+{% call modal('ipModal', '') %}
+<div class="sm:flex sm:items-start w-full">
+    <div id="modalIconContainer"
+        class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full sm:mx-0 sm:h-10 sm:w-10">
+        <svg id="modalIcon" class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+    </div>
+    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white font-mono" id="modalIpAddress">
+            192.168.x.x</h3>
+        <div class="mt-1">
+            <span id="modalBadge" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">Status</span>
+        </div>
+
+        <div class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4" id="modalContent">
+            <!-- Content injected via JS -->
+        </div>
+    </div>
+</div>
+<div class="mt-5 sm:mt-6 flex flex-col-reverse sm:flex-row-reverse sm:justify-start gap-2.5 sm:gap-3" id="modalActions">
+    <!-- Buttons injected via JS -->
+</div>
+{% endcall %}
+
+
+
+<!-- Modal Confirm Delete Device -->
+{% call modal('deleteDeviceModal', '') %}
+<div class="sm:flex sm:items-start w-full">
+    <div
+        class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
+        <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+    </div>
+    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Hapus Perangkat Permanen</h3>
+        <div class="mt-2">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Apakah Anda yakin ingin menghapus perangkat ini secara permanen? IP akan dibebaskan dan riwayat log
+                perangkat ini akan terhapus. Aksi ini tidak dapat dibatalkan.
+            </p>
+        </div>
+    </div>
+</div>
+<div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse gap-3">
+    <button type="button" id="btnConfirmDelete" onclick="doDeleteDevice()"
+        class="inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 sm:text-sm">Ya,
+        Hapus!</button>
+    <button type="button" onclick="document.getElementById('deleteDeviceModal').classList.add('hidden')"
+        class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm">Batal</button>
+</div>
+{% endcall %}
+
+<!-- Modal Export IPAM CSV -->
+{% call modal('exportModal', '') %}
+<div class="sm:flex sm:items-start w-full">
+    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 sm:mx-0 sm:h-10 sm:w-10 text-indigo-600 dark:text-indigo-400">
+        <span class="material-symbols-outlined text-[24px]">download</span>
+    </div>
+    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Export Data IPAM ke CSV</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Pilih filter seksi dan status data IP yang ingin Anda ekspor.</p>
+
+        <form id="exportForm" onsubmit="event.preventDefault(); return false;" class="mt-4 space-y-4">
+            <div>
+                <label for="exportSeksi" class="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Filter Seksi</label>
+                <select name="seksi" id="exportSeksi" class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">-- Semua Seksi --</option>
+                    {% for s in seksi_list %}
+                    <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="exportStatus" class="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Filter Status</label>
+                <select name="status" id="exportStatus" class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">-- Semua Status --</option>
+                    <option value="free">Free (Kosong)</option>
+                    <option value="used">Used (Terpakai Sesuai Seksi)</option>
+                    <option value="reserved">Reserved (Dipesan)</option>
+                    <option value="conflict">Conflict / Dibajak</option>
+                    <option value="unregistered">Unregistered (Penghuni Liar)</option>
+                    <option value="salah_seksi">Salah Seksi</option>
+                </select>
+            </div>
+
+            <div class="mt-5 sm:mt-6 flex flex-col-reverse sm:flex-row-reverse gap-2">
+                <button type="button" id="btnSubmitExport" onclick="handleExportSubmit(event)" class="inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500 w-full sm:w-auto">
+                    <span class="material-symbols-outlined text-[18px] mr-1.5">file_download</span>
+                    Download CSV
+                </button>
+                <button type="button" onclick="closeExportModal()" class="inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 w-full sm:w-auto">
+                    Batal
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endcall %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Stores current device id for delete confirmation
+    let _pendingDeleteDeviceId = null;
+    const isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
+
+    function openIpModal(ipAddress, status, seksi, hostname, deviceId, mac, brand, reservedFor, deviceStatus = '', lastSeen = '', deviceSeksi = '', userName = '', rogueName = '', activeMac = '') {
+        document.getElementById('modalIpAddress').textContent = ipAddress;
+
+        const badge = document.getElementById('modalBadge');
+        const iconContainer = document.getElementById('modalIconContainer');
+        const content = document.getElementById('modalContent');
+        const actions = document.getElementById('modalActions');
+
+        badge.className = 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full';
+        iconContainer.className = 'mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full sm:mx-0 sm:h-10 sm:w-10';
+
+        let contentHtml = '';
+        let actionHtml = `<button type="button" onclick="closeIpModal()" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-gray-700 dark:text-gray-300 bg-gray-500/10 dark:bg-gray-500/20 border border-gray-500/30 hover:bg-gray-500/30 transition-colors w-full sm:w-auto whitespace-nowrap">Tutup</button>`;
+
+        if (status === 'free') {
+            badge.classList.add('bg-gray-100', 'text-gray-800', 'dark:bg-gray-600', 'dark:text-gray-200');
+            badge.textContent = 'Free';
+            iconContainer.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-400');
+
+            contentHtml = `
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Alamat IP ini sedang kosong dan tersedia untuk dialokasikan di <strong>${seksi}</strong>.
+                </p>
+                <div id="reserveForm" class="mt-4 hidden border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <form action="/ipam/reserve" method="POST">
+                        <input type="hidden" name="ip_address" value="${ipAddress}">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Keterangan Pesanan</label>
+                        <input type="text" name="reserved_for" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Contoh: Untuk PC Kasir baru">
+                        <button type="submit" class="mt-3 w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-yellow-500 text-base font-medium text-black hover:bg-yellow-600 sm:text-sm whitespace-nowrap">Simpan Reservasi</button>
+                    </form>
+                </div>
+            `;
+
+            if (isAdmin) {
+                actionHtml = `
+                    <button type="button" onclick="document.getElementById('reserveForm').classList.toggle('hidden')" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-amber-700 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 transition-colors w-full sm:w-auto whitespace-nowrap">
+                        <span class="material-symbols-outlined text-[16px] mr-1">bookmark</span>
+                        Pesan IP
+                    </button>
+                    <a href="/devices/create?ip=${encodeURIComponent(ipAddress)}&seksi=${encodeURIComponent(seksi)}&source=ipam" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-indigo-700 dark:text-indigo-300 bg-indigo-500/15 dark:bg-indigo-500/25 border border-indigo-500/40 hover:bg-indigo-500/35 transition-colors w-full sm:w-auto whitespace-nowrap">
+                        <span class="material-symbols-outlined text-[16px] mr-1">add</span>
+                        Tambah Perangkat
+                    </a>
+                    ${actionHtml}
+                `;
+            }
+        } else if (status === 'used') {
+            if (deviceSeksi && deviceSeksi !== '-' && deviceSeksi !== seksi) {
+                badge.classList.add('bg-purple-100', 'text-purple-800', 'dark:bg-purple-900', 'dark:text-purple-200');
+                badge.textContent = 'Salah Seksi';
+                iconContainer.classList.add('bg-purple-100', 'dark:bg-purple-900', 'text-purple-600', 'dark:text-purple-400');
+            } else {
+                badge.classList.add('bg-green-100', 'text-green-800', 'dark:bg-green-900', 'dark:text-green-200');
+                badge.textContent = 'Used';
+                iconContainer.classList.add('bg-green-100', 'dark:bg-green-900', 'text-green-600', 'dark:text-green-400');
+            }
+
+            let statusBadge = deviceStatus === 'online'
+                ? '<span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs font-semibold">Online</span>'
+                : '<span class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-xs font-semibold">Offline</span>';
+
+            let lastSeenText = lastSeen !== 'N/A' && lastSeen !== '' ? lastSeen : 'Belum pernah terdeteksi';
+
+            contentHtml = `
+                <dl class="space-y-3 text-sm">
+                    <div class="grid grid-cols-3 gap-1 items-center">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Hostname</dt>
+                        <dd class="col-span-2 text-gray-900 dark:text-white font-medium">${hostname || 'N/A'}</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 items-center">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Tipe</dt>
+                        <dd class="col-span-2 text-gray-900 dark:text-white">${brand || 'N/A'}</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 items-center">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">MAC</dt>
+                        <dd class="col-span-2 text-gray-900 dark:text-white font-mono text-xs uppercase">${mac || 'N/A'}</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 items-center">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Status</dt>
+                        <dd class="col-span-2">${statusBadge}</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 items-center">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Last Seen</dt>
+                        <dd class="col-span-2 text-gray-900 dark:text-white text-xs">${lastSeenText}</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 items-center">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Pegawai</dt>
+                        <dd class="col-span-2 text-gray-900 dark:text-white">${userName || '-'}</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 items-center">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Seksi IP</dt>
+                        <dd class="col-span-2 text-gray-900 dark:text-white">${seksi}</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 items-center">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Seksi User</dt>
+                        <dd class="col-span-2 text-gray-900 dark:text-white">${deviceSeksi || '-'}</dd>
+                    </div>
+                </dl>
+                <hr class="mt-4 border-t border-gray-200 dark:border-gray-700">
+            `;
+
+            if (deviceId && isAdmin) {
+                actionHtml = `
+                    <button type="button" onclick="confirmDeleteDevice('${deviceId}')" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-red-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-colors w-full sm:w-auto whitespace-nowrap">
+                        <span class="material-symbols-outlined text-[16px] mr-1">delete</span>
+                        Hapus Perangkat
+                    </button>
+                    <a href="/devices/${deviceId}/edit?source=ipam" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-amber-700 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 transition-colors w-full sm:w-auto whitespace-nowrap">
+                        <span class="material-symbols-outlined text-[16px] mr-1">edit</span>
+                        Edit Data
+                    </a>
+                    ${actionHtml}
+                `;
+            }
+        } else if (status === 'reserved') {
+            badge.classList.add('bg-yellow-100', 'text-yellow-800', 'dark:bg-yellow-900', 'dark:text-yellow-200');
+            badge.textContent = 'Reserved';
+            iconContainer.classList.add('bg-yellow-100', 'dark:bg-yellow-900', 'text-yellow-600', 'dark:text-yellow-400');
+
+            contentHtml = `
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    Alamat IP ini sedang <strong>dipesan</strong> dan belum terhubung ke perangkat.
+                </p>
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-3 dark:bg-gray-700 dark:border-yellow-500 rounded-r-lg">
+                    <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                        <strong>Keterangan:</strong> ${reservedFor || '-'}
+                    </p>
+                </div>
+            `;
+
+            if (isAdmin) {
+                actionHtml = `
+                    <form action="/ipam/unreserve" method="POST" class="inline w-full sm:w-auto">
+                        <input type="hidden" name="ip_address" value="${ipAddress}">
+                        <button type="submit" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-red-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-colors w-full sm:w-auto whitespace-nowrap">
+                            <span class="material-symbols-outlined text-[16px] mr-1">cancel</span>
+                            Batalkan
+                        </button>
+                    </form>
+                    <a href="/devices/create?ip=${encodeURIComponent(ipAddress)}&seksi=${encodeURIComponent(seksi)}&source=ipam" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-indigo-700 dark:text-indigo-300 bg-indigo-500/15 dark:bg-indigo-500/25 border border-indigo-500/40 hover:bg-indigo-500/35 transition-colors w-full sm:w-auto whitespace-nowrap">
+                        <span class="material-symbols-outlined text-[16px] mr-1">add</span>
+                        Perangkat
+                    </a>
+                `;
+            }
+        } else if (status === 'unregistered') {
+            badge.classList.add('bg-blue-100', 'text-blue-800', 'dark:bg-blue-900', 'dark:text-blue-200');
+            badge.textContent = 'Penghuni Liar';
+            iconContainer.classList.add('bg-blue-100', 'dark:bg-blue-900', 'text-blue-600', 'dark:text-blue-400');
+
+            contentHtml = `
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    Alamat IP ini <strong>aktif di jaringan fisik</strong> tetapi belum terdaftar pada inventaris perangkat (Perangkat Liar / Unregistered Device).
+                </p>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mt-3 dark:bg-blue-900/30 dark:border-blue-500 rounded-r-lg">
+                    <p class="text-sm text-blue-700 dark:text-blue-300">
+                        <strong>Seksi:</strong> ${seksi}
+                    </p>
+                </div>
+                <hr class="mt-4 border-t border-gray-200 dark:border-gray-700">
+            `;
+
+            if (isAdmin) {
+                actionHtml = `
+                    <a href="/devices/create?ip=${encodeURIComponent(ipAddress)}&seksi=${encodeURIComponent(seksi)}&source=ipam" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-indigo-700 dark:text-indigo-300 bg-indigo-500/15 dark:bg-indigo-500/25 border border-indigo-500/40 hover:bg-indigo-500/35 transition-colors w-full sm:w-auto whitespace-nowrap">
+                        <span class="material-symbols-outlined text-[16px] mr-1">add</span>
+                        Daftarkan Perangkat Ini
+                    </a>
+                    ${actionHtml}
+                `;
+            }
+        } else if (status === 'conflict') {
+            badge.classList.add('bg-red-100', 'text-red-800', 'dark:bg-red-900', 'dark:text-red-200');
+            badge.textContent = 'IP Conflict';
+            iconContainer.classList.add('bg-red-100', 'dark:bg-red-900', 'text-red-600', 'dark:text-red-400');
+
+            const cleanMac = (m) => (m || '').replace(/[:-]/g, '').trim().toUpperCase();
+            const normMac = cleanMac(mac);
+            const normActive = cleanMac(activeMac);
+            const isSameMac = normMac && normActive && (normMac === normActive);
+            const isSameOwner = userName && rogueName && rogueName.startsWith(userName);
+            const isMacChangeOnly = isSameMac || isSameOwner || (!rogueName || rogueName === 'Perangkat Tidak Dikenal');
+
+            if (isSameMac) {
+                contentHtml = `
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                        Alamat IP ini terdaftar milik <strong>${userName || 'Pemilik Asli'}</strong> dan perangkat yang terhubung memiliki <strong>MAC Address yang cocok</strong>.
+                    </p>
+                    <div class="bg-emerald-50 border-l-4 border-emerald-500 p-3 mt-3 dark:bg-emerald-900/30 dark:border-emerald-500 rounded-r-lg space-y-2 text-xs text-emerald-900 dark:text-emerald-200">
+                        <p class="font-semibold text-sm flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300">
+                            <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                            Status MAC Address Sesuai:
+                        </p>
+                        <div class="font-mono text-xs space-y-1 pl-1">
+                            <p>• MAC Terdaftar: <code class="bg-emerald-100 dark:bg-emerald-800/80 px-1.5 py-0.5 rounded font-bold text-emerald-950 dark:text-emerald-100">${(mac || 'N/A').toUpperCase()}</code></p>
+                            <p>• MAC Terdeteksi: <code class="bg-emerald-100 dark:bg-emerald-800/80 px-1.5 py-0.5 rounded font-bold text-emerald-950 dark:text-emerald-100">${(activeMac || 'N/A').toUpperCase()}</code></p>
+                        </div>
+                    </div>
+                `;
+            } else if (isMacChangeOnly) {
+                contentHtml = `
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                        Alamat IP ini terdaftar milik <strong>${userName || 'Pemilik Asli'}</strong>, tetapi terdeteksi ketidakcocokan / perubahan <strong>MAC Address</strong> fisik di jaringan.
+                    </p>
+                    <div class="bg-amber-50 border-l-4 border-amber-500 p-3 mt-3 dark:bg-amber-900/30 dark:border-amber-500 rounded-r-lg space-y-2 text-xs text-amber-900 dark:text-amber-200">
+                        <p class="font-semibold text-sm flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+                            <span class="material-symbols-outlined text-[18px]">warning</span>
+                            Detail Perubahan MAC Address:
+                        </p>
+                        <div class="font-mono text-xs space-y-1 pl-1">
+                            <p>• MAC Terdaftar (${userName || 'Pemilik'}): <code class="bg-amber-100 dark:bg-amber-800/80 px-1.5 py-0.5 rounded font-bold text-amber-950 dark:text-amber-100">${(mac || 'N/A').toUpperCase()}</code></p>
+                            <p>• MAC Terdeteksi Aktif: <code class="bg-red-100 dark:bg-red-900/80 px-1.5 py-0.5 rounded font-bold text-red-800 dark:text-red-200">${(activeMac || 'Terdeteksi Berbeda').toUpperCase()}</code></p>
+                        </div>
+                        <p class="mt-2 text-gray-600 dark:text-gray-400 text-xs">
+                            💡 <strong>Kemungkinan Penyebab:</strong> Pegawai menggunakan Converter USB-LAN baru, Kartu Wi-Fi/LAN sekunder, atau fitur Random MAC Windows. Silakan perbarui MAC Address pada menu Edit jika ini perangkat resmi pegawai.
+                        </p>
+                    </div>
+                `;
+            } else {
+                contentHtml = `
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                        Terjadi <strong>IP Conflict</strong> (Tabrakan IP). Alamat IP ini terdaftar milik <strong>${userName || 'Pemilik Asli'}</strong>, tetapi saat ini sedang dipakai secara sepihak oleh <strong>${rogueName}</strong>.
+                    </p>
+                    <div class="bg-red-50 border-l-4 border-red-500 p-3 mt-3 dark:bg-red-900/30 dark:border-red-500 rounded-r-lg space-y-2 text-xs text-red-900 dark:text-red-200">
+                        <p class="font-semibold text-sm flex items-center gap-1.5 text-red-800 dark:text-red-300">
+                            <span class="material-symbols-outlined text-[18px]">error</span>
+                            Detail Tabrakan IP antar Pegawai:
+                        </p>
+                        <div class="font-mono text-xs space-y-1 pl-1">
+                            <p>• MAC Terdaftar (${userName || 'Pemilik'}): <code class="bg-red-100 dark:bg-red-900/80 px-1.5 py-0.5 rounded font-bold text-red-800 dark:text-red-200">${(mac || 'N/A').toUpperCase()}</code></p>
+                            <p>• MAC Pembajak (${rogueName}): <code class="bg-red-100 dark:bg-red-900/80 px-1.5 py-0.5 rounded font-bold text-red-800 dark:text-red-200">${(activeMac || 'Terdeteksi Aktif').toUpperCase()}</code></p>
+                        </div>
+                        <p class="mt-2 text-gray-600 dark:text-gray-400 text-xs">
+                            ⚠️ Harap minta pengguna perangkat pembajak untuk melepas alokasi IP ini atau ubah alokasi IP perangkat tersebut.
+                        </p>
+                    </div>
+                `;
+            }
+
+            if (isAdmin) {
+                actionHtml = `
+                    <a href="/devices/${deviceId}/edit?source=ipam" class="inline-flex justify-center items-center py-1.5 px-3 text-xs font-semibold rounded-lg text-amber-700 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 transition-colors w-full sm:w-auto whitespace-nowrap">
+                        <span class="material-symbols-outlined text-[16px] mr-1">edit</span>
+                        Edit / Update MAC Perangkat
+                    </a>
+                    ${actionHtml}
+                `;
+            }
+        }
+
+        content.innerHTML = contentHtml;
+        actions.innerHTML = actionHtml;
+        document.getElementById('ipModal').classList.remove('hidden');
+    }
+
+    function closeIpModal() {
+        document.getElementById('ipModal').classList.add('hidden');
+    }
+
+    function openExportModal() {
+        document.getElementById('exportModal').classList.remove('hidden');
+    }
+
+    function closeExportModal() {
+        document.getElementById('exportModal').classList.add('hidden');
+    }
+
+    function handleExportSubmit(e) {
+        if (e) e.preventDefault();
+        const btn = document.getElementById('btnSubmitExport');
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-symbols-outlined text-[18px] mr-1.5 animate-spin">progress_activity</span> Mengunduh...';
+        }
+
+        const seksi = document.getElementById('exportSeksi') ? document.getElementById('exportSeksi').value : '';
+        const status = document.getElementById('exportStatus') ? document.getElementById('exportStatus').value : '';
+
+        const params = new URLSearchParams();
+        if (seksi) params.append('seksi', seksi);
+        if (status) params.append('status', status);
+
+        const exportUrl = '/ipam/export?' + params.toString();
+
+        fetch(exportUrl)
+            .then(response => {
+                if (!response.ok) throw new Error('Gagal mengunduh file (HTTP ' + response.status + ')');
+                
+                let filename = 'export_ipam.csv';
+                const disposition = response.headers.get('Content-Disposition');
+                if (disposition && disposition.includes('filename=')) {
+                    const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+                    if (matches != null && matches[1]) {
+                        filename = matches[1].replace(/['"]/g, '');
+                    }
+                }
+                return response.blob().then(blob => ({ blob, filename }));
+            })
+            .then(({ blob, filename }) => {
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    if (document.body.contains(a)) document.body.removeChild(a);
+                    window.URL.revokeObjectURL(blobUrl);
+                }, 1000);
+                closeExportModal();
+            })
+            .catch(err => {
+                alert('Gagal mengunduh file CSV: ' + err.message);
+            })
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            });
+    }
+
+    function confirmDeleteDevice(deviceId) {
+        _pendingDeleteDeviceId = deviceId;
+        closeIpModal();
+        document.getElementById('deleteDeviceModal').classList.remove('hidden');
+    }
+
+    function doDeleteDevice() {
+        if (!_pendingDeleteDeviceId) return;
+        // Create a real form and submit it programmatically
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/devices/' + _pendingDeleteDeviceId + '/delete?source=ipam';
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    let currentStatusFilter = null;
+
+    function updateStatusCounts() {
+        const counts = {
+            free: 0,
+            used: 0,
+            reserved: 0,
+            conflict: 0,
+            unregistered: 0,
+            salah_seksi: 0
+        };
+
+        const allItems = document.querySelectorAll('.ip-grid-item');
+        allItems.forEach(el => {
+            const st = (el.dataset.status || '').toLowerCase();
+            if (counts.hasOwnProperty(st)) {
+                counts[st]++;
+            }
+        });
+
+        for (const [key, count] of Object.entries(counts)) {
+            const badgeEl = document.getElementById(`count-status-${key}`);
+            if (badgeEl) {
+                badgeEl.textContent = count;
+            }
+        }
+    }
+
+    function setStatusFilter(status) {
+        if (currentStatusFilter === status) {
+            currentStatusFilter = null; // Reset / toggle off when clicking same status
+        } else {
+            currentStatusFilter = status;
+        }
+        updateStatusLegendUI();
+        filterIpamGrid();
+    }
+
+    function updateStatusLegendUI() {
+        const buttons = document.querySelectorAll('[data-status-filter]');
+        buttons.forEach(btn => {
+            const btnStatus = btn.dataset.statusFilter;
+            if (currentStatusFilter === btnStatus) {
+                btn.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-950/40', 'border-indigo-400', 'dark:border-indigo-600', 'shadow-sm');
+                btn.classList.remove('opacity-50');
+            } else if (currentStatusFilter !== null) {
+                btn.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-950/40', 'border-indigo-400', 'dark:border-indigo-600', 'shadow-sm');
+                btn.classList.add('opacity-50');
+            } else {
+                btn.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-950/40', 'border-indigo-400', 'dark:border-indigo-600', 'shadow-sm', 'opacity-50');
+            }
+        });
+
+        const resetBtn = document.getElementById('resetStatusFilterBtn');
+        if (resetBtn) {
+            if (currentStatusFilter !== null) {
+                resetBtn.classList.remove('hidden');
+                resetBtn.classList.add('inline-flex');
+            } else {
+                resetBtn.classList.add('hidden');
+                resetBtn.classList.remove('inline-flex');
+            }
+        }
+    }
+
+    function filterIpamGrid(query) {
+        const searchInput = document.getElementById('ipamSearchInput');
+        const q = (query !== undefined ? query : (searchInput ? searchInput.value : '')).toLowerCase().trim();
+        const sectionCards = document.querySelectorAll('.seksi-section-card');
+
+        sectionCards.forEach(card => {
+            const items = card.querySelectorAll('.ip-grid-item');
+            let visibleCount = 0;
+
+            items.forEach(el => {
+                const ip = (el.dataset.ip || '').toLowerCase();
+                const hostname = (el.dataset.hostname || '').toLowerCase();
+                const mac = (el.dataset.mac || '').toLowerCase();
+                const status = (el.dataset.status || '').toLowerCase();
+
+                const matchesQuery = !q || ip.includes(q) || hostname.includes(q) || mac.includes(q) || status.includes(q);
+                const matchesStatus = !currentStatusFilter || status === currentStatusFilter;
+
+                if (matchesQuery && matchesStatus) {
+                    el.style.display = '';
+                    visibleCount++;
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+
+            // Hide the entire seksi section card if there are no matching IPs found in it
+            if ((q || currentStatusFilter) && visibleCount === 0) {
+                card.style.display = 'none';
+            } else {
+                card.style.display = '';
+            }
+        });
+    }
+
+    function initIpamFiltering() {
+        updateStatusCounts();
+        updateStatusLegendUI();
+        filterIpamGrid();
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        initIpamFiltering();
+    });
+
+    document.addEventListener("htmx:afterSettle", function () {
+        initIpamFiltering();
+    });
+</script>
+{% endblock %}

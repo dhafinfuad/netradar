@@ -1,0 +1,315 @@
+<!-- Main Header -->
+<header
+    class="bg-surface/80 backdrop-blur-md text-primary font-body-base text-body-base border-b border-white/10 shadow-sm w-full relative z-50 h-16">
+    <div class="w-full h-full max-w-container-max mx-auto px-gutter lg:px-xl flex justify-between items-center">
+        <!-- Logo & Mobile Menu Toggle -->
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="openMobileDrawer()"
+                class="lg:hidden text-on-surface-variant hover:text-primary p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors"
+                title="Buka Menu">
+                <span class="material-symbols-outlined text-[26px]">menu</span>
+            </button>
+            <img src="/static/icons/netradar-logo.svg" alt="NetRadar" class="h-6 w-auto">
+        </div>
+
+        <!-- Trailing Actions -->
+        <div class="flex items-center gap-sm">
+            {% if current_user.is_admin %}
+            <a href="/admin/settings"
+                class="hidden sm:flex text-on-surface-variant hover:text-primary transition-colors duration-200 p-sm rounded-full hover:bg-white/5 {% if active_menu == 'settings' %}text-primary{% endif %}"
+                title="Pengaturan">
+                <span class="material-symbols-outlined">settings</span>
+            </a>
+            {% endif %}
+            <div class="relative" id="notifDropdownWrapper">
+                <button onclick="toggleNotifDropdown(event)" id="notifBellBtn"
+                    class="relative text-on-surface-variant hover:text-primary transition-colors duration-200 p-sm rounded-full hover:bg-white/5 focus:outline-none">
+                    <span class="material-symbols-outlined">notifications</span>
+                    <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse hidden"
+                        id="notifBadge"></span>
+                </button>
+
+                <!-- Mobile Backdrop Overlay -->
+                <div id="notifBackdrop" onclick="closeNotifDropdown()" class="hidden fixed inset-0 bg-black/40 backdrop-blur-[1px] z-40 sm:hidden"></div>
+
+                <!-- Responsive Notification Dropdown (Fixed margins on mobile, absolute on desktop) -->
+                <div id="notifDropdown"
+                    class="hidden fixed sm:absolute top-16 sm:top-full right-3 sm:right-0 left-3 sm:left-auto mt-1 sm:mt-2 w-auto sm:w-80 max-w-[calc(100vw-24px)] bg-slate-900/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/15 dark:border-gray-700 z-50 overflow-hidden transition-all">
+                    <div class="px-4 py-3 border-b border-white/10 dark:border-gray-700 flex justify-between items-center bg-white/5">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-indigo-400 text-[20px]">notifications</span>
+                            <span class="font-semibold text-sm text-white">Notifikasi</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="markAllRead()" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors">Tandai dibaca</button>
+                            <button onclick="closeNotifDropdown()" class="text-gray-400 hover:text-white sm:hidden">
+                                <span class="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="notifList" class="max-h-80 overflow-y-auto divide-y divide-white/5">
+                        <!-- Populated by HTMX -->
+                        <div class="p-4 text-center text-sm text-gray-400">Klik lonceng untuk memuat...</div>
+                    </div>
+                    <div class="px-4 py-2.5 border-t border-white/10 dark:border-gray-700 text-center bg-white/5">
+                        <a href="/notifications"
+                            class="text-xs text-indigo-400 font-medium hover:text-indigo-300 flex items-center justify-center gap-1">
+                            <span>Lihat Semua Riwayat Notifikasi</span>
+                            <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-sm">
+                <span class="text-on-surface-variant hidden sm:block text-right text-sm leading-tight">
+                    <span class="font-bold">
+                        {% if current_user.name|length > 15 %}
+                        {{ current_user.name[:15] }}...
+                        {% else %}
+                        {{ current_user.name }}
+                        {% endif %}
+                    </span><br>
+                    <span class="text-xs opacity-75">{{ current_user.nip_pendek or current_user.nip or 'N/A' }}</span>
+                </span>
+            </div>
+            <a href="/logout"
+                class="hidden sm:flex bg-error hover:bg-error/80 text-white transition-colors duration-200 w-9 h-9 items-center justify-center rounded-full -mr-2 ml-1"
+                title="Logout">
+                <span class="material-symbols-outlined text-[20px]">logout</span>
+            </a>
+        </div>
+    </div>
+</header>
+
+<!-- Secondary Menu Nav (Desktop) -->
+<div class="hidden lg:block bg-surface/80 backdrop-blur-md border-b border-white/10 w-full relative z-40 h-10 overflow-hidden">
+    <div class="w-full h-full max-w-container-max mx-auto px-gutter lg:px-xl overflow-x-auto no-scrollbar">
+        <nav class="flex flex-1 justify-center gap-xs items-center h-full min-w-max">
+            <a class="flex items-center gap-xs px-md py-sm transition-colors duration-200 {% if active_menu == 'dashboard' %}border-b-2 border-primary text-primary font-bold mt-0.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-md{% endif %}"
+                href="/dashboard">
+                <span class="material-symbols-outlined text-[20px]"
+                    style="font-variation-settings: 'FILL' 1;">dashboard</span>
+                <span class="font-body-base text-body-base text-sm">Dashboard</span>
+            </a>
+            <a class="flex items-center gap-xs px-md py-sm transition-colors duration-200 {% if active_menu == 'devices' %}border-b-2 border-primary text-primary font-bold mt-0.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-md{% endif %}"
+                href="/devices">
+                <span class="material-symbols-outlined text-[20px]">router</span>
+                <span class="font-body-base text-body-base text-sm">Device</span>
+            </a>
+            <a class="flex items-center gap-xs px-md py-sm transition-colors duration-200 {% if active_menu == 'ipam' %}border-b-2 border-primary text-primary font-bold mt-0.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-md{% endif %}"
+                href="/ipam">
+                <span class="material-symbols-outlined text-[20px]">lan</span>
+                <span class="font-body-base text-body-base text-sm">IP</span>
+            </a>
+
+            <a class="flex items-center gap-xs px-md py-sm transition-colors duration-200 {% if active_menu == 'topology' %}border-b-2 border-primary text-primary font-bold mt-0.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-md{% endif %}"
+                href="/topology" hx-boost="false">
+                <span class="material-symbols-outlined text-[20px]">account_tree</span>
+                <span class="font-body-base text-body-base text-sm">Topologi</span>
+            </a>
+            <a class="flex items-center gap-xs px-md py-sm transition-colors duration-200 {% if active_menu == 'employees' %}border-b-2 border-primary text-primary font-bold mt-0.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-md{% endif %}"
+                href="/employees">
+                <span class="material-symbols-outlined text-[20px]">badge</span>
+                <span class="font-body-base text-body-base text-sm">User</span>
+            </a>
+            <a class="flex items-center gap-xs px-md py-sm transition-colors duration-200 {% if active_menu == 'docs' %}border-b-2 border-primary text-primary font-bold mt-0.5{% else %}text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-md{% endif %}"
+                href="/docs/script-guide">
+                <span class="material-symbols-outlined text-[20px]">menu_book</span>
+                <span class="font-body-base text-body-base text-sm">Script</span>
+            </a>
+        </nav>
+    </div>
+</div>
+
+<!-- Mobile Drawer Navigation Panel -->
+<div id="mobileDrawerBackdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 opacity-0 pointer-events-none transition-opacity duration-300 lg:hidden" onclick="closeMobileDrawer()"></div>
+
+<div id="mobileDrawerPanel" class="fixed top-0 bottom-0 left-0 w-4/5 max-w-xs bg-slate-900 border-r border-white/10 z-50 -translate-x-full transition-transform duration-300 ease-out flex flex-col lg:hidden shadow-2xl">
+    <!-- Drawer Header -->
+    <div class="px-5 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-highest/50">
+        <div class="flex items-center gap-2">
+            <img src="/static/icons/netradar-logo.svg" alt="NetRadar" class="h-6 w-auto">
+        </div>
+        <button type="button" onclick="closeMobileDrawer()" class="text-on-surface-variant hover:text-white p-1 rounded-lg hover:bg-white/10">
+            <span class="material-symbols-outlined text-[22px]">close</span>
+        </button>
+    </div>
+
+    <!-- User Profile Card -->
+    <div class="p-4 border-b border-white/10 bg-indigo-950/30">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 flex items-center justify-center font-bold text-lg">
+                {{ current_user.name[0] | upper if current_user and current_user.name else 'U' }}
+            </div>
+            <div class="min-w-0 flex-1">
+                <h4 class="text-sm font-bold text-white truncate">{{ current_user.name }}</h4>
+                <p class="text-xs text-indigo-300/80 truncate">NIP: {{ current_user.nip_pendek or current_user.nip or 'N/A' }}</p>
+                <span class="inline-block px-2 py-0.5 text-[10px] font-semibold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mt-1">
+                    {{ 'Admin Operator' if current_user.is_admin else 'Viewer' }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Nav Links -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-1">
+        <a href="/dashboard" onclick="closeMobileDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors {% if active_menu == 'dashboard' %}bg-primary/20 text-primary font-bold border border-primary/30{% else %}text-on-surface-variant hover:bg-white/5 hover:text-white{% endif %}">
+            <span class="material-symbols-outlined text-[22px]">dashboard</span>
+            <span>Dashboard</span>
+        </a>
+        <a href="/devices" onclick="closeMobileDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors {% if active_menu == 'devices' %}bg-primary/20 text-primary font-bold border border-primary/30{% else %}text-on-surface-variant hover:bg-white/5 hover:text-white{% endif %}">
+            <span class="material-symbols-outlined text-[22px]">router</span>
+            <span>Perangkat Jaringan</span>
+        </a>
+        <a href="/ipam" onclick="closeMobileDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors {% if active_menu == 'ipam' %}bg-primary/20 text-primary font-bold border border-primary/30{% else %}text-on-surface-variant hover:bg-white/5 hover:text-white{% endif %}">
+            <span class="material-symbols-outlined text-[22px]">lan</span>
+            <span>IPAM (IP Pool)</span>
+        </a>
+        <a href="/topology" hx-boost="false" onclick="closeMobileDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors {% if active_menu == 'topology' %}bg-primary/20 text-primary font-bold border border-primary/30{% else %}text-on-surface-variant hover:bg-white/5 hover:text-white{% endif %}">
+            <span class="material-symbols-outlined text-[22px]">account_tree</span>
+            <span>Topologi Jaringan</span>
+        </a>
+        <a href="/employees" onclick="closeMobileDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors {% if active_menu == 'employees' %}bg-primary/20 text-primary font-bold border border-primary/30{% else %}text-on-surface-variant hover:bg-white/5 hover:text-white{% endif %}">
+            <span class="material-symbols-outlined text-[22px]">badge</span>
+            <span>Manajemen Pegawai</span>
+        </a>
+        <a href="/docs/script-guide" onclick="closeMobileDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors {% if active_menu == 'docs' %}bg-primary/20 text-primary font-bold border border-primary/30{% else %}text-on-surface-variant hover:bg-white/5 hover:text-white{% endif %}">
+            <span class="material-symbols-outlined text-[22px]">menu_book</span>
+            <span>Panduan Script</span>
+        </a>
+
+        {% if current_user.is_admin %}
+        <div class="pt-3 my-2 border-t border-white/10"></div>
+        <a href="/admin/settings" onclick="closeMobileDrawer()"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors {% if active_menu == 'settings' %}bg-primary/20 text-primary font-bold border border-primary/30{% else %}text-on-surface-variant hover:bg-white/5 hover:text-white{% endif %}">
+            <span class="material-symbols-outlined text-[22px]">settings</span>
+            <span>Pengaturan Sistem</span>
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Drawer Footer -->
+    <div class="p-4 border-t border-white/10 bg-slate-950/60">
+        <a href="/logout" class="flex items-center justify-center gap-2 w-full py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-semibold rounded-xl border border-red-500/30 transition-colors">
+            <span class="material-symbols-outlined text-[20px]">logout</span>
+            <span>Keluar / Logout</span>
+        </a>
+    </div>
+</div>
+
+<script>
+    function openMobileDrawer() {
+        const backdrop = document.getElementById('mobileDrawerBackdrop');
+        const panel = document.getElementById('mobileDrawerPanel');
+        if (backdrop && panel) {
+            backdrop.classList.remove('opacity-0', 'pointer-events-none');
+            backdrop.classList.add('opacity-100', 'pointer-events-auto');
+            panel.classList.remove('-translate-x-full');
+            panel.classList.add('translate-x-0');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function closeMobileDrawer() {
+        const backdrop = document.getElementById('mobileDrawerBackdrop');
+        const panel = document.getElementById('mobileDrawerPanel');
+        if (backdrop && panel) {
+            backdrop.classList.add('opacity-0', 'pointer-events-none');
+            backdrop.classList.remove('opacity-100', 'pointer-events-auto');
+            panel.classList.add('-translate-x-full');
+            panel.classList.remove('translate-x-0');
+            document.body.style.overflow = '';
+        }
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeMobileDrawer();
+            closeNotifDropdown();
+        }
+    });
+
+    document.addEventListener('htmx:beforeSwap', function(e) {
+        closeMobileDrawer();
+        const targetId = e.detail && e.detail.target ? e.detail.target.id : '';
+        if (targetId !== 'notifList') {
+            closeNotifDropdown();
+        }
+    });
+
+    function toggleNotifDropdown(event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        const dropdown = document.getElementById('notifDropdown');
+        const backdrop = document.getElementById('notifBackdrop');
+        if (!dropdown) return;
+        const isHidden = dropdown.classList.contains('hidden');
+        if (isHidden) {
+            dropdown.classList.remove('hidden');
+            if (backdrop) backdrop.classList.remove('hidden');
+            htmx.ajax('GET', '/api/v1/notifications/dropdown', { target: '#notifList' });
+        } else {
+            closeNotifDropdown();
+        }
+    }
+
+    function closeNotifDropdown() {
+        const dropdown = document.getElementById('notifDropdown');
+        const backdrop = document.getElementById('notifBackdrop');
+        if (dropdown) dropdown.classList.add('hidden');
+        if (backdrop) backdrop.classList.add('hidden');
+    }
+
+    document.addEventListener('click', function(e) {
+        const wrapper = document.getElementById('notifDropdownWrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            closeNotifDropdown();
+        }
+    });
+
+    function markAllRead() {
+        htmx.ajax('POST', '/api/v1/notifications/mark-all-read', {
+            target: '#notifList',
+            swap: 'innerHTML',
+            handler: function (elt, info) {
+                htmx.ajax('GET', '/api/v1/notifications/dropdown', { target: '#notifList' });
+                document.getElementById('notifBadge').classList.add('hidden');
+            }
+        });
+    }
+
+    // Check for unread notifications count
+    function checkNotifications() {
+        fetch('/api/v1/notifications/unread-count')
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.getElementById('notifBadge');
+                if (data.count > 0) {
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            })
+            .catch(e => console.error("Error fetching unread notifs:", e));
+    }
+
+    // Immediate check on script load & HTMX page navigation
+    checkNotifications();
+
+    document.addEventListener("DOMContentLoaded", checkNotifications);
+    document.addEventListener("htmx:afterSettle", checkNotifications);
+    document.addEventListener("htmx:load", checkNotifications);
+
+    if (!window._notifIntervalStarted) {
+        window._notifIntervalStarted = true;
+        setInterval(checkNotifications, 30000);
+    }
+</script>

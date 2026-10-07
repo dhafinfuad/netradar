@@ -1,0 +1,650 @@
+{% extends "base.html" %}
+{% from 'components/button.html' import btn, btn_edit, btn_delete, btn_detail %}
+{% from 'components/status.html' import status_badge %}
+{% from 'components/modal.html' import modal %}
+
+{% block content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">Manajemen Perangkat</h1>
+        <p class="text-sm text-gray-500 mt-1">Daftar seluruh perangkat yang terhubung dalam jaringan</p>
+    </div>
+    <div class="mt-2 md:mt-0 flex flex-wrap gap-2">
+        {% if current_user.is_admin %}
+        <button type="button" onclick="openExportModal()" id="btnExportDevices"
+            class="inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">
+            <span class="material-symbols-outlined text-[18px] mr-1.5">download</span>
+            Export CSV
+        </button>
+        <button type="button" onclick="document.getElementById('importDevicesModal').classList.remove('hidden')"
+            class="hidden inline-flex justify-center items-center py-2 px-3 sm:px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-xs sm:text-sm font-medium rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <span class="material-symbols-outlined text-[18px] mr-1">upload_file</span>
+            Import
+        </button>
+        {{ btn('Tambah Perangkat', href='/devices/create', icon='<path stroke-linecap="round" stroke-linejoin="round"
+            stroke-width="2" d="M12 4v16m8-8H4"></path>') }}
+        {{ btn('Scan Jaringan', variant='green', id='btnScanDevices', icon='
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        ') }}
+        {% endif %}
+        <script>
+            document.getElementById('btnScanDevices').addEventListener('click', function () {
+                fetch('/api/v1/status/scan', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        window.location.href = window.location.pathname + '?msg=' + encodeURIComponent(data.message);
+                    })
+                    .catch(() => alert('Gagal memulai scan jaringan.'));
+            });
+        </script>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 mb-6">
+    <form onsubmit="event.preventDefault(); return false;" class="flex flex-col md:flex-row gap-3 md:gap-4">
+        <div class="flex-1">
+            <label class="sr-only" for="deviceSearchInput">Cari</label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <input type="text" name="q" id="deviceSearchInput" value="{{ q }}"
+                    oninput="filterDevicesTable(this.value)"
+                    onkeydown="if(event.key === 'Enter'){ event.preventDefault(); filterDevicesTable(this.value); }"
+                    class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-base md:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="Cari Hostname, IP, MAC, Seksi...">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 md:flex gap-3">
+            <div class="w-full md:w-44">
+                <select name="status" id="statusFilter"
+                    class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-base md:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    onchange="filterDevicesTable(document.getElementById('deviceSearchInput').value)">
+                    <option value="">Semua Status</option>
+                    <option value="online" {% if status=='online' %}selected{% endif %}>Online</option>
+                    <option value="offline" {% if status=='offline' %}selected{% endif %}>Offline</option>
+                    <option value="unknown" {% if status=='unknown' %}selected{% endif %}>Unknown</option>
+                </select>
+            </div>
+            <div class="w-full md:w-56">
+                <select name="seksi" id="seksiFilter"
+                    class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-base md:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    onchange="filterDevicesTable(document.getElementById('deviceSearchInput').value)">
+                    <option value="">Semua Seksi</option>
+                    {% for s in seksi_list %}
+                    <option value="{{ s }}" {% if seksi==s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Table & Mobile Cards Container -->
+<div id="devices-table-container"
+    class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
+    hx-get="/devices{% if request.query_params %}?{{ request.query_params }}{% endif %}"
+    hx-select="#devices-table-container" hx-target="this" hx-swap="outerHTML" hx-trigger="every 30s">
+    
+    <!-- Desktop Table View (hidden on mobile) -->
+    <div class="hidden md:block overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Perangkat
+                    </th>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Alamat
+                        Jaringan</th>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status
+                    </th>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seksi /
+                        Lokasi</th>
+                    <th scope="col"
+                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {% for d in devices %}
+                <tr class="device-row-desktop hover:bg-gray-50 dark:hover:bg-gray-700 transition duration-150"
+                    data-status="{{ d.status }}" data-seksi="{{ d.seksi or '' }}">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div
+                                class="flex-shrink-0 h-10 w-10 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                {% if d.device_type.lower() == 'pc' or d.device_type.lower() == 'laptop' %}
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                                {% elif d.device_type.lower() == 'printer' %}
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+                                    </path>
+                                </svg>
+                                {% elif d.device_type.lower() == 'server' or d.device_type.lower() == 'jaringan' or
+                                d.device_type.lower() == 'switch' %}
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01">
+                                    </path>
+                                </svg>
+                                {% else %}
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                                {% endif %}
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ d.hostname }}</div>
+                                <div class="text-sm text-gray-500 dark:text-gray-400">{{ d.user.name if d.user else '-'
+                                    }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-mono text-gray-900 dark:text-white">{{ d.ip_address or '-' }}</div>
+                        <div class="text-xs font-mono text-gray-500 dark:text-gray-400">{{ d.mac_address or '-' }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if d.status == 'online' %}
+                        <span
+                            class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Online</span>
+                        {% elif d.status == 'offline' %}
+                        <span
+                            class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Offline</span>
+                        {% else %}
+                        <span
+                            class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Unknown</span>
+                        {% endif %}
+
+                        <div class="text-xs text-gray-500 mt-1">{% if d.last_seen %}{{
+                            d.last_seen.strftime('%Y-%m-%d %H:%M') }}{% endif %}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {{ d.seksi or '-' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-start gap-2">
+                        {{ btn_detail(href="/devices/" ~ d.id, icon="visibility") }}
+                        {% if current_user.is_admin %}
+                        {{ btn_edit(href="/devices/" ~ d.id ~ "/edit") }}
+                        {{ btn_delete(onclick="openDeleteModal(" ~ d.id ~ ", '" ~ d.hostname ~ "')") }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium">Tidak ada data</h3>
+                        <p class="mt-1 text-sm text-gray-500">Coba ubah filter atau kata kunci pencarian.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr id="no-devices-match-row" style="display: none;">
+                    <td colspan="5" class="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium">Tidak ada data yang cocok</h3>
+                        <p class="mt-1 text-sm text-gray-500">Coba ubah kata kunci pencarian Anda.</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Mobile Card View (shown on screens < md) -->
+    <div class="block md:hidden divide-y divide-gray-100 dark:divide-gray-700/60">
+        {% for d in devices %}
+        <div class="device-row-mobile p-4 bg-white dark:bg-gray-800 space-y-3 transition duration-150"
+            data-status="{{ d.status }}" data-seksi="{{ d.seksi or '' }}">
+            <!-- Card Header: Device Name & Status -->
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="flex-shrink-0 h-9 w-9 bg-indigo-100 dark:bg-indigo-900/60 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                        {% if d.device_type.lower() == 'pc' or d.device_type.lower() == 'laptop' %}
+                        <span class="material-symbols-outlined text-[20px]">computer</span>
+                        {% elif d.device_type.lower() == 'printer' %}
+                        <span class="material-symbols-outlined text-[20px]">print</span>
+                        {% elif d.device_type.lower() == 'server' or d.device_type.lower() == 'jaringan' or d.device_type.lower() == 'switch' %}
+                        <span class="material-symbols-outlined text-[20px]">router</span>
+                        {% else %}
+                        <span class="material-symbols-outlined text-[20px]">devices</span>
+                        {% endif %}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <h3 class="font-bold text-sm text-gray-900 dark:text-white truncate">{{ d.hostname }}</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ d.user.name if d.user else 'Tanpa Pemilik' }}</p>
+                    </div>
+                </div>
+                <div>
+                    {% if d.status == 'online' %}
+                    <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Online</span>
+                    {% elif d.status == 'offline' %}
+                    <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Offline</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Unknown</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Card Body: Network & Section Details -->
+            <div class="grid grid-cols-2 gap-2 text-xs bg-gray-50 dark:bg-gray-900/40 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700/50">
+                <div>
+                    <span class="text-gray-400 block text-[10px] uppercase font-mono">IP Address</span>
+                    <span class="font-mono font-medium text-gray-800 dark:text-gray-200">{{ d.ip_address or '-' }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-400 block text-[10px] uppercase font-mono">MAC Address</span>
+                    <span class="font-mono text-gray-600 dark:text-gray-300 truncate block">{{ d.mac_address or '-' }}</span>
+                </div>
+                <div class="col-span-2 pt-1 border-t border-gray-200/50 dark:border-gray-700/50 flex justify-between items-center text-gray-500 dark:text-gray-400">
+                    <span>Seksi: <strong class="text-gray-700 dark:text-gray-300 font-medium">{{ d.seksi or '-' }}</strong></span>
+                    <span>Last: {% if d.last_seen %}{{ d.last_seen.strftime('%d/%m %H:%M') }}{% else %}-{% endif %}</span>
+                </div>
+            </div>
+
+            <!-- Card Footer Actions -->
+            <div class="flex items-center justify-end gap-2 pt-1">
+                {{ btn_detail(href="/devices/" ~ d.id, icon="visibility", extra_class="flex-1 justify-center py-1.5") }}
+                {% if current_user.is_admin %}
+                {{ btn_edit(href="/devices/" ~ d.id ~ "/edit", extra_class="flex-1 justify-center py-1.5") }}
+                {{ btn_delete(onclick="openDeleteModal(" ~ d.id ~ ", '" ~ d.hostname ~ "')", extra_class="flex-1 justify-center py-1.5") }}
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+            <span class="material-symbols-outlined text-4xl mb-1 text-gray-400">devices_off</span>
+            <p class="text-sm font-medium">Tidak ada data perangkat.</p>
+        </div>
+        {% endfor %}
+        <div id="no-devices-match-card" style="display: none;" class="p-8 text-center text-gray-500 dark:text-gray-400">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                    d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="mt-2 text-sm font-medium">Tidak ada data yang cocok</h3>
+            <p class="mt-1 text-sm text-gray-500">Coba ubah kata kunci pencarian Anda.</p>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <div id="device-pagination-container"
+        class="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-3 sm:px-6">
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+{% call modal('deleteModal', 'Hapus Perangkat') %}
+<div class="sm:flex sm:items-start mb-6">
+    <div
+        class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
+        <svg class="h-6 w-6 text-red-600 dark:text-red-200" xmlns="http://www.w3.org/2000/svg" fill="none"
+            viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+    </div>
+    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+        <div class="mt-2">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Apakah Anda yakin ingin menghapus perangkat <strong id="deleteDeviceName"
+                    class="text-gray-800 dark:text-gray-200"></strong>? Data yang dihapus tidak dapat dikembalikan dan
+                IP yang terkait akan dibebaskan.
+            </p>
+        </div>
+    </div>
+</div>
+<form id="deleteForm" method="POST" action="" hx-boost="false">
+    <div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row-reverse gap-2.5 sm:gap-3">
+        {{ btn('Ya, Hapus', variant='danger', type='submit', extra_class='w-full sm:w-auto') }}
+        <button type="button" onclick="closeDeleteModal()"
+            class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">Batal</button>
+    </div>
+</form>
+{% endcall %}
+
+<!-- Modal Export Devices CSV -->
+{% call modal('exportDevicesModal', '') %}
+<div class="sm:flex sm:items-start w-full">
+    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 sm:mx-0 sm:h-10 sm:w-10 text-indigo-600 dark:text-indigo-400">
+        <span class="material-symbols-outlined text-[24px]">download</span>
+    </div>
+    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Export Data Perangkat ke CSV</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Pilih filter seksi dan status perangkat yang ingin Anda ekspor.</p>
+
+        <form id="exportDevicesForm" onsubmit="event.preventDefault(); return false;" class="mt-4 space-y-4">
+            <div>
+                <label for="exportSeksi" class="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Filter Seksi</label>
+                <select name="seksi" id="exportSeksi" class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">-- Semua Seksi --</option>
+                    {% for s in seksi_list %}
+                    <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="exportStatus" class="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Filter Status</label>
+                <select name="status" id="exportStatus" class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">-- Semua Status --</option>
+                    <option value="free">Free (Kosong)</option>
+                    <option value="used">Used (Terpakai Sesuai Seksi)</option>
+                    <option value="reserved">Reserved (Dipesan)</option>
+                    <option value="conflict">Conflict / Dibajak</option>
+                    <option value="unregistered">Unregistered (Penghuni Liar)</option>
+                    <option value="salah_seksi">Salah Seksi</option>
+                </select>
+            </div>
+
+            <div class="mt-5 sm:mt-6 flex flex-col-reverse sm:flex-row-reverse gap-2">
+                <button type="button" id="btnSubmitExport" onclick="handleDevicesExportSubmit(event)" class="inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500 w-full sm:w-auto">
+                    <span class="material-symbols-outlined text-[18px] mr-1.5">file_download</span>
+                    Download CSV
+                </button>
+                <button type="button" onclick="closeExportModal()" class="inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 w-full sm:w-auto">
+                    Batal
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endcall %}
+
+<!-- Modal Import Perangkat Excel / CSV -->
+<div id="importDevicesModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="import-modal-title"
+    role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"
+            onclick="document.getElementById('importDevicesModal').classList.add('hidden')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div
+            class="inline-block bg-white dark:bg-gray-800 rounded-xl text-left overflow-hidden shadow-2xl transform transition-all my-6 align-middle max-w-[92%] sm:max-w-md w-full">
+            <form action="/devices/import" method="POST" enctype="multipart/form-data" hx-boost="false">
+                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-2">Import Data Perangkat
+                    </h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Unggah file (.xlsx atau .csv) yang memuat
+                        data perangkat massal. Kolom header yang didukung: <strong>Hostname, IP Address, MAC Address,
+                            Tipe Perangkat, Brand, Model, Seksi</strong>.</p>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label for="import_file"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pilih File
+                                (.xlsx / .csv)</label>
+                            <input type="file" name="file" id="import_file" accept=".csv, .xlsx, .xls" required
+                                class="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-900/40 dark:file:text-indigo-300">
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 sm:px-6 flex flex-col-reverse sm:flex-row-reverse gap-2.5 sm:gap-3">
+                    <button type="submit"
+                        class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700">Unggah
+                        & Import</button>
+                    <button type="button"
+                        onclick="document.getElementById('importDevicesModal').classList.add('hidden')"
+                        class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentDevicePage = 1;
+    let devicePageSize = 15;
+
+    function renderPaginationControls(containerId, config) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const { currentPage, totalPages, totalItems, startItem, endItem, itemLabel, pageSize, onPageChange, onPageSizeChange } = config;
+
+        let pageOptionsHtml = `
+            <option value="15" ${pageSize === 15 ? 'selected' : ''}>15 / hal</option>
+            <option value="30" ${pageSize === 30 ? 'selected' : ''}>30 / hal</option>
+            <option value="50" ${pageSize === 50 ? 'selected' : ''}>50 / hal</option>
+            <option value="all" ${pageSize === 'all' ? 'selected' : ''}>Semua</option>
+        `;
+
+        let infoText = totalItems === 0
+            ? `Tidak ada ${itemLabel} ditemukan`
+            : `Menampilkan <span class="font-semibold text-gray-900 dark:text-white">${startItem}</span> - <span class="font-semibold text-gray-900 dark:text-white">${endItem}</span> dari <span class="font-semibold text-gray-900 dark:text-white">${totalItems}</span> ${itemLabel}`;
+
+        let pageBtnsHtml = '';
+
+        if (totalPages > 1) {
+            pageBtnsHtml += `
+                <button type="button" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}
+                    class="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    Sebelumnya
+                </button>
+            `;
+
+            for (let p = 1; p <= totalPages; p++) {
+                if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
+                    const isActive = p === currentPage;
+                    pageBtnsHtml += `
+                        <button type="button" data-page="${p}"
+                            class="px-3 py-1 text-xs border rounded-md font-semibold transition-colors ${isActive ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}">
+                            ${p}
+                        </button>
+                    `;
+                } else if (p === currentPage - 2 || p === currentPage + 2) {
+                    pageBtnsHtml += `<span class="px-1 py-1 text-xs text-gray-400">...</span>`;
+                }
+            }
+
+            pageBtnsHtml += `
+                <button type="button" data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''}
+                    class="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    Selanjutnya
+                </button>
+            `;
+        }
+
+        container.innerHTML = `
+            <div class="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-300">
+                <span>${infoText}</span>
+                <select id="${containerId}-select" class="text-xs py-1 px-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-indigo-500">
+                    ${pageOptionsHtml}
+                </select>
+            </div>
+            <div class="flex items-center gap-1">
+                ${pageBtnsHtml}
+            </div>
+        `;
+
+        const selectEl = document.getElementById(`${containerId}-select`);
+        if (selectEl) {
+            selectEl.onchange = (e) => onPageSizeChange(e.target.value);
+        }
+
+        container.querySelectorAll('button[data-page]').forEach(btn => {
+            btn.onclick = () => {
+                const pageNum = Number(btn.dataset.page);
+                if (pageNum >= 1 && pageNum <= totalPages && pageNum !== currentPage) {
+                    onPageChange(pageNum);
+                }
+            };
+        });
+    }
+
+    function filterDevicesTable(query) {
+        const q = (query !== undefined ? query : (document.getElementById('deviceSearchInput')?.value || '')).toLowerCase().trim();
+        const statusVal = (document.getElementById('statusFilter')?.value || '').toLowerCase();
+        const seksiVal = (document.getElementById('seksiFilter')?.value || '').toLowerCase();
+
+        const desktopRows = Array.from(document.querySelectorAll('.device-row-desktop'));
+        const mobileRows = Array.from(document.querySelectorAll('.device-row-mobile'));
+
+        function matchRow(row) {
+            const text = (row.textContent || '').toLowerCase();
+            const rowStatus = (row.dataset.status || '').toLowerCase();
+            const rowSeksi = (row.dataset.seksi || '').toLowerCase();
+            return (!q || text.includes(q)) && (!statusVal || rowStatus === statusVal) && (!seksiVal || rowSeksi === seksiVal);
+        }
+
+        const matchedDesktop = desktopRows.filter(matchRow);
+        const matchedMobile = mobileRows.filter(matchRow);
+
+        const totalMatched = matchedDesktop.length;
+        const totalPages = devicePageSize === 'all' ? 1 : Math.ceil(totalMatched / Number(devicePageSize)) || 1;
+
+        if (currentDevicePage > totalPages) currentDevicePage = totalPages;
+        if (currentDevicePage < 1) currentDevicePage = 1;
+
+        const startIdx = devicePageSize === 'all' ? 0 : (currentDevicePage - 1) * Number(devicePageSize);
+        const endIdx = devicePageSize === 'all' ? totalMatched : Math.min(startIdx + Number(devicePageSize), totalMatched);
+
+        desktopRows.forEach(r => r.style.display = 'none');
+        mobileRows.forEach(r => r.style.display = 'none');
+
+        matchedDesktop.slice(startIdx, endIdx).forEach(r => r.style.display = '');
+        matchedMobile.slice(startIdx, endIdx).forEach(r => r.style.display = '');
+
+        const noMatchRow = document.getElementById('no-devices-match-row');
+        if (noMatchRow) {
+            noMatchRow.style.display = (totalMatched === 0 && desktopRows.length > 0) ? '' : 'none';
+        }
+        const noMatchCard = document.getElementById('no-devices-match-card');
+        if (noMatchCard) {
+            noMatchCard.style.display = (totalMatched === 0 && mobileRows.length > 0) ? '' : 'none';
+        }
+
+        renderPaginationControls('device-pagination-container', {
+            currentPage: currentDevicePage,
+            totalPages: totalPages,
+            totalItems: totalMatched,
+            startItem: totalMatched === 0 ? 0 : startIdx + 1,
+            endItem: endIdx,
+            itemLabel: 'perangkat',
+            pageSize: devicePageSize,
+            onPageChange: (newPage) => {
+                currentDevicePage = newPage;
+                filterDevicesTable(document.getElementById('deviceSearchInput')?.value);
+            },
+            onPageSizeChange: (newSize) => {
+                devicePageSize = newSize === 'all' ? 'all' : Number(newSize);
+                currentDevicePage = 1;
+                filterDevicesTable(document.getElementById('deviceSearchInput')?.value);
+            }
+        });
+    }
+
+    function initDevicePagination() {
+        if (typeof filterDevicesTable === 'function' && document.getElementById('device-pagination-container')) {
+            filterDevicesTable();
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener("DOMContentLoaded", initDevicePagination);
+    } else {
+        initDevicePagination();
+    }
+    document.addEventListener("htmx:afterSettle", initDevicePagination);
+    document.addEventListener("htmx:load", initDevicePagination);
+
+    function openDeleteModal(deviceId, deviceName) {
+        document.getElementById('deleteDeviceName').textContent = deviceName;
+        const form = document.getElementById('deleteForm');
+        form.action = '/devices/' + deviceId + '/delete';
+        form.setAttribute('action', '/devices/' + deviceId + '/delete');
+        document.getElementById('deleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.add('hidden');
+    }
+
+    function openExportModal() {
+        document.getElementById('exportDevicesModal').classList.remove('hidden');
+    }
+
+    function closeExportModal() {
+        document.getElementById('exportDevicesModal').classList.add('hidden');
+    }
+
+    function handleDevicesExportSubmit(e) {
+        if (e) e.preventDefault();
+        const btn = document.getElementById('btnSubmitExport');
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-symbols-outlined text-[18px] mr-1.5 animate-spin">progress_activity</span> Mengunduh...';
+        }
+
+        const seksi = document.getElementById('exportSeksi') ? document.getElementById('exportSeksi').value : '';
+        const status = document.getElementById('exportStatus') ? document.getElementById('exportStatus').value : '';
+
+        const params = new URLSearchParams();
+        if (seksi) params.append('seksi', seksi);
+        if (status) params.append('status', status);
+
+        const exportUrl = '/devices/export?' + params.toString();
+
+        fetch(exportUrl)
+            .then(response => {
+                if (!response.ok) throw new Error('Gagal mengunduh file (HTTP ' + response.status + ')');
+                
+                let filename = 'export_devices.csv';
+                const disposition = response.headers.get('Content-Disposition');
+                if (disposition && disposition.includes('filename=')) {
+                    const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+                    if (matches != null && matches[1]) {
+                        filename = matches[1].replace(/['"]/g, '');
+                    }
+                }
+                return response.blob().then(blob => ({ blob, filename }));
+            })
+            .then(({ blob, filename }) => {
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    if (document.body.contains(a)) document.body.removeChild(a);
+                    window.URL.revokeObjectURL(blobUrl);
+                }, 1000);
+                closeExportModal();
+            })
+            .catch(err => {
+                alert('Gagal mengunduh file CSV: ' + err.message);
+            })
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            });
+    }
+</script>
+{% endblock %}

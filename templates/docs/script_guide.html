@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Panduan Script Client - IP Radar{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Panduan Script Client</h1>
+        <p class="text-gray-500 dark:text-gray-400 mt-1">Gunakan script ini untuk mendaftarkan perangkat secara otomatis
+            ke IP Radar.</p>
+    </div>
+</div>
+
+<div
+    class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden mb-6">
+    <div class="p-6">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Langkah 1: Unduh Script</h2>
+        <p class="text-gray-600 dark:text-gray-400 mb-6">
+            Unduh file script installer di bawah ini ke komputer client (PC Dosen/Pegawai).
+        </p>
+
+        <div class="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700 mb-8">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-blue-600">folder_zip</span>
+                        ipradar-agent-windows.zip
+                    </h3>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm">
+                        Berisi script pengaturan IP, Hardware Collector otomatis, dan Run_Installer.bat
+                        .
+                    </p>
+                </div>
+                <a href="/downloads/ipradar-agent-windows.zip" download="ipradar-agent-windows.zip" hx-boost="false"
+                    class="mt-3 inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">
+                    <span class="material-symbols-outlined mr-2 text-[20px]">download</span>
+                    Download ZIP Installer
+                </a>
+            </div>
+        </div>
+
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Langkah 2: Cara Penggunaan</h2>
+
+        <div class="space-y-6">
+            <div class="border-l-2 border-blue-500 pl-5">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Instalasi Otomatis
+                    (Direkomendasikan)</h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm mb-2">Gunakan paket installer ini untuk mendaftarkan
+                    komputer secara permanen sebagai background service.</p>
+                <ol class="list-decimal list-inside text-gray-600 dark:text-gray-400 space-y-2 text-sm">
+                    <li>Download file <code><b>ipradar-agent-windows.zip</b></code>.</li>
+                    <li><strong>PENTING:</strong> Klik kanan pada file ZIP tersebut &gt; <strong>Properties</strong>
+                        &gt; centang kotak <strong>Unblock</strong> (Buka Blokir) di bagian bawah &gt;
+                        <strong>OK</strong>. <br><span class="text-gray-500 ml-4">(Ini mencegah munculnya error "Windows
+                            cannot access the specified device...")</span>
+                        <br><span class="text-amber-600 dark:text-amber-400 font-medium ml-4">💡 Jika masih muncul
+                            notifikasi error "unspecified path", silakan <b>Restart</b> komputer Anda lalu jalankan
+                            kembali <code>Run_Installer.bat</code>.</span>
+                    </li>
+                    <li><strong>Extract (Unzip)</strong> file <code>ipradar-agent-windows.zip</code> tersebut.</li>
+                    <li>Di dalam folder hasil ekstrak, klik 2x pada file
+                        <strong><code>Run_Installer.bat</code></strong>.
+                    </li>
+                    <li>Script akan otomatis membuka PowerShell dan meminta izin Administrator, pilih
+                        <strong>Yes</strong>.
+                    </li>
+                    <li>Masukkan IP belakang (opsional) dan NIP Pendek Pegawai dengan hak Akses Administrator Perangkat.
+                    </li>
+                    <li>Selesai! Komputer ini akan otomatis terdaftar di IP Radar setiap kali dinyalakan.</li>
+                </ol>
+            </div>
+        </div>
+
+        <div
+            class="mt-8 flex items-start gap-3 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 p-4 rounded-lg">
+            <i class="fas fa-exclamation-triangle mt-1"></i>
+            <div>
+                <strong>Penting:</strong> Jika Anda mengisi pertanyaan Target IP, script akan mengubah pengaturan
+                jaringan (IP Statis) di komputer tersebut. Pastikan Anda mengizinkan saat diminta akses Administrator.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

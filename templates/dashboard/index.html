@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - IP Radar{% endblock %}
+
+{% block content %}
+<div id="dashboard-container">
+<!-- Statistics Row -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-md mb-lg">
+    <!-- Total Perangkat -->
+    <div class="bg-gradient-to-br from-primary-container to-blue-900/50 rounded-xl p-3.5 sm:p-lg relative overflow-hidden group shadow-lg border border-primary/20">
+        <div class="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <span class="material-symbols-outlined" style="font-size: 80px;">router</span>
+        </div>
+        <p class="text-xs sm:text-sm text-primary font-medium mb-xs truncate">Total Perangkat</p>
+        <h2 id="stat_total" class="text-2xl sm:text-display-lg font-bold text-white tracking-tight">{{ stats.total_devices | default('0') }}</h2>
+    </div>
+    <!-- Online -->
+    <div class="bg-gradient-to-br from-secondary-container to-emerald-900/50 rounded-xl p-3.5 sm:p-lg relative overflow-hidden group shadow-lg border border-secondary/20">
+        <div class="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <span class="material-symbols-outlined" style="font-size: 80px;">check_circle</span>
+        </div>
+        <p class="text-xs sm:text-sm text-secondary font-medium mb-xs truncate">Online</p>
+        <h2 id="stat_online" class="text-2xl sm:text-display-lg font-bold text-white tracking-tight">{{ stats.online | default('0') }}</h2>
+    </div>
+    <!-- Offline -->
+    <div class="bg-gradient-to-br from-tertiary-container to-orange-900/50 rounded-xl p-3.5 sm:p-lg relative overflow-hidden group shadow-lg border border-tertiary/20">
+        <div class="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <span class="material-symbols-outlined" style="font-size: 80px;">error</span>
+        </div>
+        <p class="text-xs sm:text-sm text-tertiary font-medium mb-xs truncate">Offline</p>
+        <h2 id="stat_offline" class="text-2xl sm:text-display-lg font-bold text-white tracking-tight">{{ stats.offline | default('0') }}</h2>
+    </div>
+    <!-- IP Liar / Unregistered -->
+    <div class="bg-gradient-to-br from-blue-900/40 to-blue-950/60 rounded-xl p-3.5 sm:p-lg relative overflow-hidden group shadow-lg border border-blue-500/20">
+        <div class="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500 text-blue-400">
+            <span class="material-symbols-outlined" style="font-size: 80px;">no_accounts</span>
+        </div>
+        <p class="text-xs sm:text-sm text-blue-400 font-medium mb-xs truncate">IP Liar / Unregistered</p>
+        <h2 id="stat_unregistered" class="text-2xl sm:text-display-lg font-bold text-white tracking-tight">{{ stats.unregistered | default(stats.unknown | default('0')) }}</h2>
+    </div>
+</div>
+
+<!-- Details Row -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+    <!-- Alert Table Card -->
+    <div class="bg-surface/60 backdrop-blur-md border border-white/10 rounded-xl shadow-lg flex flex-col h-[350px] sm:h-[400px]">
+        <div class="p-4 sm:p-lg border-b border-white/10 flex justify-between items-center">
+            <h3 class="font-semibold text-sm sm:text-base text-on-surface">Alert / Perangkat Down Terbaru</h3>
+            <a href="/devices?status=offline" class="text-primary hover:text-primary-fixed transition-colors text-xs sm:text-sm font-medium">View All</a>
+        </div>
+        <div class="flex-1 overflow-auto p-3 sm:p-md">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead>
+                    <tr class="text-on-surface-variant font-caption text-caption border-b border-white/5">
+                        <th class="pb-sm font-medium">Device Name</th>
+                        <th class="pb-sm font-medium">IP Address</th>
+                        <th class="pb-sm font-medium text-right">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="alert_table_body" class="font-label-mono text-label-mono divide-y divide-white/5">
+                    {% for alert in recent_alerts %}
+                    <tr class="hover:bg-white/5 transition-colors group">
+                        <td class="py-md text-on-surface flex items-center gap-sm">
+                            <span class="material-symbols-outlined text-error text-sm">warning</span>
+                            {{ alert.name }}
+                        </td>
+                        <td class="py-md text-on-surface-variant">{{ alert.ip }}</td>
+                        <td class="py-md text-right">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full bg-error/20 text-error text-xs font-semibold">Down</span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="py-md text-on-surface-variant text-center empty-row">Belum ada data alert perangkat down.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Progress Bar Card -->
+    <div class="bg-surface/60 backdrop-blur-md border border-white/10 rounded-xl shadow-lg flex flex-col h-[350px] sm:h-[400px]">
+        <div class="p-4 sm:p-lg border-b border-white/10">
+            <h3 class="font-semibold text-sm sm:text-base text-on-surface">Progress Bar Penggunaan IP per Seksi</h3>
+        </div>
+        <div id="progress_bars_container" class="flex-1 overflow-auto p-lg space-y-lg">
+            {% for seksi, progress in progress_seksi.items() %}
+            <div data-seksi="{{ seksi }}">
+                <div class="flex justify-between font-label-mono text-label-mono text-on-surface mb-xs">
+                    <span>{{ seksi }}</span>
+                    <span class="text-primary progress-text">{{ progress }}%</span>
+                </div>
+                <div class="w-full bg-surface-container-high rounded-full h-2 overflow-hidden">
+                    <div class="bg-gradient-to-r from-primary to-primary-container h-2 rounded-full progress-bar" style="width: {{ progress }}%"></div>
+                </div>
+            </div>
+            {% else %}
+            <div class="text-on-surface-variant text-center empty-row">Data penggunaan IP per seksi belum tersedia.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const evtSource = new EventSource("/api/v1/sse/status");
+        
+        evtSource.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                
+                // Update stats
+                document.getElementById('stat_total').innerText = data.stats.total_devices;
+                document.getElementById('stat_online').innerText = data.stats.online;
+                document.getElementById('stat_offline').innerText = data.stats.offline;
+                document.getElementById('stat_unregistered').innerText = data.stats.unregistered;
+                
+                // Update alerts table
+                const tbody = document.getElementById('alert_table_body');
+                tbody.innerHTML = '';
+                if(data.recent_alerts.length > 0) {
+                    data.recent_alerts.forEach(alert => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-white/5 transition-colors group';
+                        tr.innerHTML = `
+                            <td class="py-md text-on-surface flex items-center gap-sm">
+                                <span class="material-symbols-outlined text-error text-sm">warning</span>
+                                ${alert.name}
+                            </td>
+                            <td class="py-md text-on-surface-variant">${alert.ip}</td>
+                            <td class="py-md text-right">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full bg-error/20 text-error text-xs font-semibold">Down</span>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="3" class="py-md text-on-surface-variant text-center empty-row">Belum ada data alert perangkat down.</td></tr>';
+                }
+                
+                // Update progress bars
+                const container = document.getElementById('progress_bars_container');
+                container.innerHTML = '';
+                const keys = Object.keys(data.progress_seksi);
+                if (keys.length > 0) {
+                    keys.forEach(seksi => {
+                        const pct = data.progress_seksi[seksi];
+                        const div = document.createElement('div');
+                        div.innerHTML = `
+                            <div class="flex justify-between font-label-mono text-label-mono text-on-surface mb-xs">
+                                <span>${seksi}</span>
+                                <span class="text-primary progress-text">${pct}%</span>
+                            </div>
+                            <div class="w-full bg-surface-container-high rounded-full h-2 overflow-hidden">
+                                <div class="bg-gradient-to-r from-primary to-primary-container h-2 rounded-full progress-bar" style="width: ${pct}%"></div>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                } else {
+                    container.innerHTML = '<div class="text-on-surface-variant text-center empty-row">Data penggunaan IP per seksi belum tersedia.</div>';
+                }
+                
+            } catch (err) {
+                console.error("Error parsing SSE data:", err);
+            }
+        };
+        
+        evtSource.onerror = function(err) {
+            console.error("EventSource failed:", err);
+        };
+    });
+</script>
+{% endblock %}

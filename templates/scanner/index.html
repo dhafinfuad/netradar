@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% from 'components/button.html' import btn %}
+
+{% block title %}Unknown Devices Scanner - IP Radar{% endblock %}
+
+{% block content %}
+<div class="sm:flex sm:items-center sm:justify-between mb-8">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Scanner Perangkat Tidak Dikenal</h1>
+        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
+            Daftar perangkat (MAC Address) yang terdeteksi aktif di jaringan namun belum terdaftar di inventaris.
+        </p>
+    </div>
+    <div class="mt-4 sm:mt-0 flex gap-3">
+        {{ btn('Scan Ulang Jaringan', variant='primary', id='btnScanJaringan', icon='
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        ') }}
+    </div>
+</div>
+
+<div class="mb-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+    <form action="/scanner" method="GET" class="w-full sm:w-1/3 relative" data-hx-boost="true">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+        </div>
+        <input type="text" name="q" value="{{ q }}" placeholder="Cari IP atau MAC..." 
+               hx-get="/scanner" hx-trigger="keyup changed delay:300ms, search" hx-target="#scanner-table-container" hx-select="#scanner-table-container" hx-include="[name='sort']" hx-push-url="true"
+               class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out">
+    </form>
+</div>
+
+{% macro sort_icon(col_name) %}
+    {% if sort == col_name ~ '_asc' %}
+    <svg class="w-4 h-4 inline-block ml-1 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+    {% elif sort == col_name ~ '_desc' %}
+    <svg class="w-4 h-4 inline-block ml-1 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+    {% else %}
+    <svg class="w-4 h-4 inline-block ml-1 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
+    {% endif %}
+{% endmacro %}
+
+<div id="scanner-table-container" class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider group cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" onclick="window.location.href='?q={{ q | urlencode }}&sort={{ 'ip_desc' if sort == 'ip_asc' else 'ip_asc' }}'">
+                        IP Address {{ sort_icon('ip') }}
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider group cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" onclick="window.location.href='?q={{ q | urlencode }}&sort={{ 'mac_desc' if sort == 'mac_asc' else 'mac_asc' }}'">
+                        MAC Address {{ sort_icon('mac') }}
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider group cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" onclick="window.location.href='?q={{ q | urlencode }}&sort={{ 'first_seen_desc' if sort == 'first_seen_asc' else 'first_seen_asc' }}'">
+                        Pertama Terdeteksi {{ sort_icon('first_seen') }}
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider group cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" onclick="window.location.href='?q={{ q | urlencode }}&sort={{ 'last_seen_asc' if sort == 'last_seen_desc' else 'last_seen_desc' }}'">
+                        Terakhir Terdeteksi {{ sort_icon('last_seen') }}
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Aksi
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {% for dev in unknowns %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-mono font-medium text-gray-900 dark:text-white">{{ dev.ip_address }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if dev.mac_address %}
+                        <div class="text-sm font-mono text-gray-900 dark:text-white">{{ dev.mac_address }}</div>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                            Tidak Terdeteksi (Beda Subnet)
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">{{ dev.first_seen.strftime('%Y-%m-%d %H:%M') if dev.first_seen else '-' }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">{{ dev.last_seen.strftime('%Y-%m-%d %H:%M') if dev.last_seen else '-' }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex justify-end gap-2">
+                            <a href="/devices/create?ip={{ dev.ip_address | urlencode }}&mac={{ dev.mac_address or '' | urlencode }}&source=scanner" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <svg class="-ml-0.5 mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                                Daftarkan
+                            </a>
+                            <form action="/scanner/{{ dev.id }}/ignore" method="POST" class="inline" onsubmit="return confirm('Anda yakin ingin mengabaikan IP {{ dev.ip_address }}?');">
+                                <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    Abaikan
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="px-6 py-12 text-center">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">Tidak Ada Perangkat Liar</h3>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Jaringan Anda bersih! Semua perangkat aktif telah terdaftar.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('btnScanJaringan').addEventListener('click', function () {
+        fetch('/api/v1/status/scan', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                showToast(data.message, 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+            });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+{% from 'components/button.html' import btn %}
+{% from 'components/form.html' import form_input, form_select %}
+{% from 'components/modal.html' import modal %}
+
+{% block content %}
+<div class="mb-6 flex items-center">
+    <a href="{% if source == 'ipam' %}/ipam{% else %}/devices{% endif %}"
+        class="text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 mr-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18">
+            </path>
+        </svg>
+    </a>
+    <div>
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-white">{% if device %}Edit Perangkat{% else %}Tambah
+            Perangkat{% endif %}</h1>
+        <p class="text-gray-500 mt-1">Isi formulir berikut untuk mendaftarkan atau mengubah spesifikasi perangkat</p>
+    </div>
+</div>
+
+{% if error %}
+<div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-md">
+    <div class="flex">
+        <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clip-rule="evenodd" />
+            </svg>
+        </div>
+        <div class="ml-3">
+            <p class="text-sm text-red-700 font-medium">{{ error }}</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl items-start">
+    <!-- Informasi Utama (Form) -->
+    <div id="left-form-column" class="lg:col-span-2 space-y-6">
+        <div
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <form action="{% if device %}/devices/{{ device.id }}/edit{% else %}/devices/create{% endif %}"
+                method="POST" class="p-6 md:p-8">
+                {% if source %}
+                <input type="hidden" name="source" value="{{ source }}">
+                {% endif %}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Bantuan / Rekomendasi Script -->
+                    {% if not device %}
+                    <div class="col-span-1 md:col-span-2 mb-2">
+                        <div
+                            class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex gap-4 dark:bg-indigo-900/20 dark:border-indigo-800">
+                            <div class="flex-shrink-0 mt-1">
+                                <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400">info</span>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Mendaftarkan PC /
+                                    Laptop Windows?</h4>
+                                <p class="text-sm text-indigo-700 dark:text-indigo-400 mt-1 mb-3">
+                                    Untuk PC atau Laptop, cukup jalankan skrip ini, tanpa perlu input
+                                    manual.
+                                </p>
+                                <a href="/downloads/ipradar-agent-windows.zip" download="ipradar-agent-windows.zip" hx-boost="false" target="_blank"
+                                    class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors w-full sm:w-auto">
+                                    <span class="material-symbols-outlined text-[16px] mr-1">download</span> Unduh
+                                    Script (ZIP)
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Informasi Dasar -->
+                    <div class="col-span-1 md:col-span-2 mt-2">
+                        <h3
+                            class="text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
+                            Informasi Dasar (Untuk Perangkat Non-Windows / IoT)</h3>
+                    </div>
+
+                    {{ form_input('hostname', 'Hostname / Nama Perangkat', device.hostname if device else
+                    (form_data.hostname if form_data else ''), required=True) }}
+
+                    {% set dt = device.device_type if device else (form_data.device_type if form_data else '') %}
+                    {% set type_list = [
+                    {'value': 'PC', 'label': 'PC Desktop'},
+                    {'value': 'Laptop', 'label': 'Laptop'},
+                    {'value': 'Server', 'label': 'Server'},
+                    {'value': 'Printer', 'label': 'Printer / Scanner'},
+                    {'value': 'Switch', 'label': 'Switch / Router'},
+                    {'value': 'Jaringan', 'label': 'Perangkat Jaringan'},
+                    {'value': 'Other', 'label': 'Lainnya'}
+                    ] %}
+                    {{ form_select('device_type', 'Jenis Perangkat', type_list, dt, required=True) }}
+
+
+
+                    <div class="col-span-1 md:col-span-2">
+                        {% set cur_seksi = device.seksi if device else (form_data.seksi if form_data else prefill_seksi)
+                        %}
+                        {% set seksi_list = [
+                        'Subbagian Umum dan Kepatuhan Internal',
+                        'Seksi Pelayanan',
+                        'Seksi Penjaminan Kualitas Data',
+                        'Seksi Pemeriksaan, Penilaian, dan Penagihan',
+                        'Seksi Pengawasan I',
+                        'Seksi Pengawasan II',
+                        'Seksi Pengawasan III',
+                        'Seksi Pengawasan IV',
+                        'Seksi Pengawasan V',
+                        'Seksi Pengawasan VI',
+                        'Fungsional Pemeriksa',
+                        'Kepala Kantor',
+                        'Administrator',
+                        'Printer',
+                        'Server',
+                        'Jaringan'
+                        ] %}
+                        {{ form_select('seksi', 'Seksi / Penempatan', seksi_list, cur_seksi, required=True,
+                        placeholder='-- Pilih Seksi / Penempatan --') }}
+                    </div>
+
+                    <div class="col-span-1 md:col-span-2 mt-6">
+                        <h3
+                            class="text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
+                            Informasi Jaringan</h3>
+                    </div>
+
+                    <div id="ip_address_container">
+                        {{ form_input('ip_address', 'IP Address (Statik/Reservasi)', device.ip_address if device else
+                        (form_data.ip_address if form_data else (prefill_ip or '')), required=True,
+                        placeholder='192.168.x.x', extra_class='font-mono') }}
+                    </div>
+                    {{ form_input('mac_address', 'MAC Address', device.mac_address if device else (form_data.mac_address
+                    if form_data else ''), required=True, placeholder='00:1A:2B:3C:4D:5E', extra_class='font-mono uppercase') }}
+
+                    <div class="col-span-1 md:col-span-2 mt-2" id="snmp_container">
+                        {{ form_input('snmp_community', 'SNMP Community String (Hanya untuk Switch/Router)', device.snmp_community if device else (form_data.snmp_community if form_data else 'public'), required=False, placeholder='public', extra_class='font-mono') }}
+                        <p class="text-xs text-gray-500 mt-1 dark:text-gray-400">Digunakan untuk menarik data nama, uptime, dan port secara otomatis via SNMP.</p>
+                    </div>
+                </div>
+
+                <script>
+                    document.getElementById('device_type').addEventListener('change', function() {
+                        const snmpContainer = document.getElementById('snmp_container');
+                        if (this.value === 'Switch' || this.value === 'Jaringan') {
+                            snmpContainer.style.display = 'block';
+                        } else {
+                            snmpContainer.style.display = 'none';
+                        }
+                    });
+                    // Trigger on load
+                    setTimeout(() => document.getElementById('device_type').dispatchEvent(new Event('change')), 100);
+                </script>
+
+                <div class="mt-8 pt-5 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 w-full">
+                    {% if not device %}
+                    {{ btn('Pesan IP Ini', variant='warning-outline', id='btnPesanIp', extra_class='w-full sm:w-auto sm:mr-auto') }}
+                    <script>
+                        document.getElementById('btnPesanIp').addEventListener('click', function () {
+                            const ipEl = document.getElementById('ip_address');
+                            const ipInput = ipEl ? ipEl.value.trim() : '';
+                            if (!ipInput) {
+                                document.getElementById('emptyIpModal').classList.remove('hidden');
+                                return;
+                            }
+                            document.getElementById('reserveIpAddressInput').value = ipInput;
+                            const titleEl = document.querySelector('#reserveModal h3');
+                            if (titleEl) titleEl.innerText = 'Pesan IP ' + ipInput;
+
+                            document.getElementById('reserveModal').classList.remove('hidden');
+                        });
+                    </script>
+                    {% endif %}
+
+                    {% set cancel_url = '/ipam' if source == 'ipam' else '/devices' %}
+                    <div class="flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 w-full sm:w-auto">
+                        {{ btn('Batal', variant='secondary', href=cancel_url, extra_class='w-full sm:w-auto') }}
+                        {{ btn('Simpan Perangkat', variant='primary', type='submit', extra_class='w-full sm:w-auto') }}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sidebar / Riwayat -->
+    <div class="lg:col-span-1">
+        <div id="right-sidebar-card"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex-none">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Riwayat Kepemilikan</h3>
+            </div>
+            <div id="history-scroll-container" class="p-6 flex-1 overflow-y-auto min-h-0">
+                {% if history %}
+                <div class="flow-root">
+                    <ul class="-mb-8">
+                        {% for h in history %}
+                        <li>
+                            <div class="relative pb-8">
+                                {% if not loop.last %}
+                                <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-700"
+                                    aria-hidden="true"></span>
+                                {% endif %}
+                                <div class="relative flex space-x-3">
+                                    <div>
+                                        <span
+                                            class="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center ring-8 ring-white dark:ring-gray-800">
+                                            <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none"
+                                                stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                        <div>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                {% if h.to_user_id %}
+                                                Di-assign ke <span
+                                                    class="font-semibold text-gray-900 dark:text-white">{{
+                                                    users_map.get(h.to_user_id) if users_map else (h.to_user.name if
+                                                    h.to_user else ('User #' ~ h.to_user_id)) }}</span>
+                                                {% else %}
+                                                Kepemilikan <span
+                                                    class="font-semibold text-red-500 dark:text-red-400">Dilepas / Tanpa
+                                                    Pemilik</span>
+                                                {% endif %}
+                                            </p>
+                                            {% if h.seksi %}
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center">
+                                                <span class="material-symbols-outlined text-[14px] mr-1">corporate_fare</span>
+                                                Seksi: {{ h.seksi }}
+                                            </p>
+                                            {% endif %}
+                                            {% if h.notes %}
+                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ h.notes }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <div
+                                            class="text-right text-xs whitespace-nowrap text-gray-500 dark:text-gray-400 flex flex-col items-end gap-1">
+                                            <time datetime="{{ h.changed_at }}">{{ h.changed_at.strftime('%Y-%m-%d') if
+                                                h.changed_at else '-' }}</time>
+                                            <button type="button" onclick="openDeleteHistoryModal({{ h.id }})"
+                                                title="Hapus catatan riwayat ini"
+                                                class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-500/10 flex items-center gap-0.5 text-xs">
+                                                <span class="material-symbols-outlined text-[16px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Belum ada riwayat kepemilikan atau
+                    mutasi tercatat.</p>
+                {% endif %}
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex justify-end flex-none mt-auto">
+                {% if device %}
+                <button type="button"
+                    onclick="document.getElementById('assignUserModal').classList.remove('hidden')"
+                    class="w-full inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">
+                    <span class="material-symbols-outlined text-[18px] mr-1">person_add</span>
+                    Mutasi / Assign User
+                </button>
+                {% else %}
+                <p class="text-xs text-gray-400 text-center italic">Simpan perangkat terlebih dahulu untuk
+                    menambahkan riwayat kepemilikan.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if not device %}
+{% call modal('reserveModal', 'Pesan IP ' ~ (prefill_ip or ''), form_action='/ipam/reserve') %}
+<input type="hidden" name="ip_address" id="reserveIpAddressInput" value="{{ prefill_ip or '' }}">
+<div class="mt-2 mb-6">
+    {{ form_input('reserved_for', 'Keterangan Pesanan', required=True, placeholder='Contoh: Untuk PC Kasir baru') }}
+</div>
+
+<div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-row-reverse gap-3">
+    {{ btn('Simpan Reservasi', variant='warning', type='submit') }}
+    <button type="button" onclick="document.getElementById('reserveModal').classList.add('hidden')"
+        class="inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">Batal</button>
+</div>
+{% endcall %}
+
+{% call modal('emptyIpModal', 'Peringatan') %}
+<div class="mt-2 mb-6">
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+        Silakan isi IP Address terlebih dahulu untuk memesannya.
+    </p>
+</div>
+<div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-row-reverse">
+    <button type="button" onclick="document.getElementById('emptyIpModal').classList.add('hidden')"
+        class="inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">Mengerti</button>
+</div>
+{% endcall %}
+{% endif %}
+
+{% call modal('invalidIpModal', 'IP Di Luar Alokasi Seksi') %}
+<div class="mt-2 mb-6">
+    <p id="invalidIpModalMessage" class="text-sm text-gray-700 dark:text-gray-300 font-medium">
+        IP Address di luar alokasi Seksi.
+    </p>
+    <div id="invalidIpModalDetails"
+        class="mt-3 text-xs text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 p-3 rounded-lg max-h-40 overflow-y-auto hidden font-mono">
+    </div>
+</div>
+<div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-row-reverse">
+    <button type="button" onclick="document.getElementById('invalidIpModal').classList.add('hidden')"
+        class="inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">Mengerti</button>
+</div>
+{% endcall %}
+
+{% if device %}
+<!-- Modal Assign Pemilik Perangkat -->
+<div id="assignUserModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="assign-modal-title"
+    role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"
+            onclick="document.getElementById('assignUserModal').classList.add('hidden')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div
+            class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+            <form action="/devices/{{ device.id }}/assign" method="POST">
+                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">Ubah / Tetapkan Pemilik
+                        Perangkat</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="assign_user_id"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Pegawai
+                                (Pemilik Baru)</label>
+                            <select name="user_id" id="assign_user_id"
+                                class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                <option value="">--- Tanpa Pemilik / Dilepas ---</option>
+                                {% for u in users %}
+                                <option value="{{ u.id }}" {% if device.user_id==u.id %}selected{% endif %}>{{ u.name }}
+                                    {% if u.seksi %}({{ u.seksi }}){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="assign_notes"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300">Catatan / Keterangan
+                                (Opsional)</label>
+                            <textarea name="notes" id="assign_notes" rows="3"
+                                placeholder="Contoh: Serah terima laptop untuk penugasan tim audit"
+                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 sm:px-6 flex flex-row-reverse gap-3">
+                    <button type="submit"
+                        class="inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">Simpan Perubahan</button>
+                    <button type="button" onclick="document.getElementById('assignUserModal').classList.add('hidden')"
+                        class="inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Hapus Riwayat Kepemilikan -->
+{% call modal('deleteHistoryModal', 'Hapus Riwayat Kepemilikan') %}
+<div class="sm:flex sm:items-start mb-6">
+    <div
+        class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
+        <span class="material-symbols-outlined text-red-600 dark:text-red-200">warning</span>
+    </div>
+    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+        <div class="mt-2">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Apakah Anda yakin ingin menghapus catatan riwayat kepemilikan ini? Data riwayat yang dihapus tidak dapat
+                dikembalikan.
+            </p>
+        </div>
+    </div>
+</div>
+<form id="deleteHistoryForm" method="POST" action="" hx-boost="false">
+    <div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-row-reverse gap-3">
+        {{ btn('Ya, Hapus', variant='danger', type='submit', extra_class='w-full sm:w-auto') }}
+        <button type="button" onclick="document.getElementById('deleteHistoryModal').classList.add('hidden')"
+            class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Batal</button>
+    </div>
+</form>
+{% endcall %}
+
+<script>
+    function openDeleteHistoryModal(historyId) {
+        const form = document.getElementById('deleteHistoryForm');
+        form.action = '/devices/history/' + historyId + '/delete';
+        form.setAttribute('action', '/devices/history/' + historyId + '/delete');
+        document.getElementById('deleteHistoryModal').classList.remove('hidden');
+    }
+</script>
+{% endif %}
+
+<script>
+    (function () {
+        const ipSeksiMap = {{ ip_seksi_map | default ({}, true) | tojson
+    }};
+    const seksiIpMap = {{ seksi_ip_map | default ({}, true) | tojson }};
+
+    const seksiSelect = document.getElementById('seksi');
+    const container = document.getElementById('ip_address_container');
+
+    if (!seksiSelect || !container) return;
+
+    function showInvalidModal(msg, detailsText) {
+        const msgEl = document.getElementById('invalidIpModalMessage');
+        const detailsEl = document.getElementById('invalidIpModalDetails');
+        if (msgEl) msgEl.innerText = msg;
+        if (detailsEl) {
+            if (detailsText) {
+                detailsEl.innerText = detailsText;
+                detailsEl.classList.remove('hidden');
+            } else {
+                detailsEl.classList.add('hidden');
+            }
+        }
+        const modalEl = document.getElementById('invalidIpModal');
+        if (modalEl) modalEl.classList.remove('hidden');
+    }
+
+    function renderIpField(seksiVal, currentIpVal) {
+        const allowedIps = seksiVal && seksiIpMap[seksiVal] ? seksiIpMap[seksiVal] : [];
+
+        if (seksiVal && allowedIps.length > 0) {
+            let optionsHtml = `<option value="">-- Pilih IP Address (${allowedIps.length} IP) --</option>`;
+            let foundMatch = false;
+
+            allowedIps.forEach(ip => {
+                const isSelected = (ip === currentIpVal) ? 'selected' : '';
+                if (ip === currentIpVal) foundMatch = true;
+                optionsHtml += `<option value="${ip}" ${isSelected}>${ip}</option>`;
+            });
+
+            if (currentIpVal && !foundMatch && currentIpVal.trim() !== '') {
+                let details = `IP yang teralokasi untuk ${seksiVal}:\n` + allowedIps.join(', ');
+                showInvalidModal(`IP Address ${currentIpVal} berada di luar alokasi ${seksiVal}.`, details);
+            }
+
+            container.innerHTML = `
+                    <div>
+                        <label for="ip_address" class="block text-sm font-medium text-gray-700 dark:text-gray-300">IP Address (Statik/Reservasi)</label>
+                        <select id="ip_address" name="ip_address" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono">
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                `;
+        } else {
+            container.innerHTML = `
+                    <div>
+                        <label for="ip_address" class="block text-sm font-medium text-gray-700 dark:text-gray-300">IP Address (Statik/Reservasi)</label>
+                        <input type="text" id="ip_address" name="ip_address" required value="${currentIpVal || ''}" placeholder="10.12.13.x" class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono">
+                    </div>
+                `;
+        }
+
+        attachIpEvents();
+    }
+
+    function attachIpEvents() {
+        const ipEl = document.getElementById('ip_address');
+        if (!ipEl) return;
+
+        if (ipEl.tagName === 'INPUT') {
+            const handleTypedIp = function () {
+                const typedIp = ipEl.value.trim();
+                if (!typedIp) return;
+
+                const mappedSeksi = ipSeksiMap[typedIp];
+                if (mappedSeksi) {
+                    if (seksiSelect.value !== mappedSeksi) {
+                        seksiSelect.value = mappedSeksi;
+                        renderIpField(mappedSeksi, typedIp);
+                    }
+                } else {
+                    const selectedSeksi = seksiSelect.value;
+                    let allowedIps = selectedSeksi ? (seksiIpMap[selectedSeksi] || []) : [];
+                    let details = selectedSeksi && allowedIps.length > 0
+                        ? `IP yang teralokasi untuk ${selectedSeksi}:\n` + allowedIps.join(', ')
+                        : `IP ini tidak terdaftar dalam alokasi IPAM mana pun.`;
+                    showInvalidModal(`IP Address ${typedIp} tidak sesuai dengan alokasi Seksi.`, details);
+                }
+            };
+
+            ipEl.addEventListener('change', handleTypedIp);
+            ipEl.addEventListener('blur', handleTypedIp);
+        }
+    }
+
+    seksiSelect.addEventListener('change', function () {
+        const currentIpEl = document.getElementById('ip_address');
+        const currentIpVal = currentIpEl ? currentIpEl.value.trim() : '';
+        renderIpField(seksiSelect.value, currentIpVal);
+    });
+
+    const initialIpEl = document.getElementById('ip_address');
+    const initialIpVal = initialIpEl ? initialIpEl.value.trim() : '';
+
+    if (seksiSelect.value) {
+        renderIpField(seksiSelect.value, initialIpVal);
+    } else if (initialIpVal && ipSeksiMap[initialIpVal]) {
+        const autoSeksi = ipSeksiMap[initialIpVal];
+        seksiSelect.value = autoSeksi;
+        renderIpField(autoSeksi, initialIpVal);
+    } else {
+        attachIpEvents();
+    }
+    }) ();
+
+    function syncSidebarHeight() {
+        const leftCol = document.getElementById('left-form-column');
+        const rightCard = document.getElementById('right-sidebar-card');
+        const historyList = document.getElementById('history-scroll-container');
+        
+        if (leftCol && historyList && rightCard && window.innerWidth >= 1024) {
+            const leftHeight = leftCol.offsetHeight;
+            rightCard.style.height = leftHeight + 'px';
+            
+            const header = rightCard.querySelector('.border-b');
+            const footer = rightCard.querySelector('.border-t');
+            const headerH = header ? header.offsetHeight : 64;
+            const footerH = footer ? footer.offsetHeight : 68;
+            
+            const availableHeight = leftHeight - headerH - footerH;
+            historyList.style.height = availableHeight + 'px';
+            historyList.style.maxHeight = availableHeight + 'px';
+        } else if (historyList && rightCard) {
+            rightCard.style.height = 'auto';
+            historyList.style.height = 'auto';
+            historyList.style.maxHeight = '450px';
+        }
+    }
+    window.addEventListener('load', syncSidebarHeight);
+    window.addEventListener('resize', syncSidebarHeight);
+    document.addEventListener('DOMContentLoaded', syncSidebarHeight);
+    setTimeout(syncSidebarHeight, 100);
+    setTimeout(syncSidebarHeight, 300);
+</script>
+{% endblock %}

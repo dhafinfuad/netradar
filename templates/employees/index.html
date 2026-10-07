@@ -1,0 +1,543 @@
+{% extends "base.html" %}
+{% from 'components/button.html' import btn, btn_edit, btn_delete, btn_detail %}
+{% from 'components/modal.html' import modal %}
+
+{% block title %}Manajemen Pegawai - IP Radar{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-white">Manajemen Pegawai</h1>
+        <p class="text-gray-500 dark:text-gray-400 mt-1">Daftar pegawai beserta alokasi kepemilikan perangkat jaringan
+        </p>
+    </div>
+    <div>
+        {% if current_user.is_admin %}
+        {{ btn('Tambah Pegawai', variant='primary', type='button', id='btnTambahPegawai', icon='<path
+            stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>') }}
+        <script>
+            document.getElementById('btnTambahPegawai').addEventListener('click', function () {
+                document.getElementById('createEmployeeModal').classList.remove('hidden');
+            });
+        </script>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 mb-6">
+    <form onsubmit="event.preventDefault(); return false;" class="flex flex-col md:flex-row gap-4 items-center">
+        <div class="w-full md:flex-1 relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </div>
+            <input type="text" name="q" id="employeeSearchInput" value="{{ q }}"
+                oninput="filterEmployeesGrid(this.value)"
+                onkeydown="if(event.key === 'Enter'){ event.preventDefault(); filterEmployeesGrid(this.value); }"
+                placeholder="Cari Nama Pegawai, NIP, atau Jabatan..."
+                class="block w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base md:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400">
+        </div>
+        <div class="w-full md:w-64">
+            <select name="seksi" id="seksiFilter"
+                class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-base md:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                onchange="filterEmployeesGrid(document.getElementById('employeeSearchInput').value)">
+                <option value="">-- Semua Seksi --</option>
+                {% for s in seksi_list %}
+                <option value="{{ s }}" {% if seksi==s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            {{ btn('Cari', variant='primary', type='button', extra_attrs='onclick="filterEmployeesGrid(document.getElementById(\'employeeSearchInput\').value)"', extra_class='w-full md:w-auto') }}
+        </div>
+    </form>
+</div>
+
+<!-- Employees Grid -->
+{% if not employees %}
+<div
+    class="bg-white dark:bg-gray-800 rounded-xl p-12 text-center shadow-sm border border-gray-100 dark:border-gray-700">
+    <span class="material-symbols-outlined text-gray-400 text-[64px] mb-2">badge</span>
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Tidak ada data pegawai</h3>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Tidak ditemukan pegawai yang cocok dengan kriteria
+        pencarian Anda.</p>
+</div>
+{% else %}
+<div id="no-employees-match-div" style="display: none;" class="bg-white dark:bg-gray-800 rounded-xl p-12 text-center shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
+    <span class="material-symbols-outlined text-gray-400 text-[64px] mb-2">search_off</span>
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Tidak ada data yang cocok</h3>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Coba ubah kata kunci pencarian Anda.</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+    {% for e in employees %}
+    {% set count = device_counts.get(e.id, 0) %}
+    <div
+        class="employee-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 flex flex-col justify-between hover:border-indigo-500/50 transition-colors"
+        data-seksi="{{ e.seksi or '' }}">
+        <div>
+            <div class="flex items-start justify-between gap-3 mb-3">
+                <div class="flex items-center gap-3">
+                    <div>
+                        <h3 class="font-semibold text-gray-900 dark:text-white line-clamp-1" title="{{ e.name }}">{{
+                            e.name }}</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 font-mono">NIP: {{ e.nip_pendek or '-' }}</p>
+                    </div>
+                </div>
+                <span
+                    class="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap {% if count > 0 %}bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200{% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                    {{ count }} Perangkat
+                </span>
+            </div>
+
+            <div
+                class="space-y-1.5 text-xs text-gray-600 dark:text-gray-300 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Jabatan:</span>
+                    <span class="font-medium text-right line-clamp-1" title="{{ e.jabatan or '-' }}">{{ e.jabatan or '-'
+                        }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Seksi:</span>
+                    <span class="font-medium text-right line-clamp-1" title="{{ e.seksi or '-' }}">{{ e.seksi or '-'
+                        }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-2">
+            {% if current_user.is_admin %}
+            {{ btn_edit(onclick="openEditEmployeeModalFromBtn(this)", extra_attrs='data-id="' ~ e.id ~ '" data-name="' ~ e.name ~ '" data-nip-pendek="' ~ (e.nip_pendek or '') ~ '" data-nip="' ~ (e.nip or '') ~ '" data-seksi="' ~ (e.seksi or '') ~ '" data-jabatan="' ~ (e.jabatan or '') ~ '"', extra_class="flex-1") }}
+            {{ btn_delete(onclick="openDeleteEmployeeModal(this)", extra_attrs='data-id="' ~ e.id ~ '" data-name="' ~ e.name ~ '"', extra_class="flex-1") }}
+            {% endif %}
+            {{ btn_detail(href="/employees/" ~ e.id, extra_class="flex-1") }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Pagination -->
+<div id="employee-pagination-container"
+    class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
+</div>
+
+<!-- Modal Tambah Pegawai -->
+{% call modal('createEmployeeModal', 'Tambah Pegawai Baru', form_action='/employees/create') %}
+<div class="space-y-4 mb-6">
+    <div>
+        <label for="create_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nama Pegawai <span
+                class="text-red-500">*</span></label>
+        <input type="text" name="name" id="create_name" required placeholder="Contoh: Budi Santoso"
+            class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label for="create_nip_pendek" class="block text-sm font-medium text-gray-700 dark:text-gray-300">NIP
+                Pendek</label>
+            <input type="text" name="nip_pendek" id="create_nip_pendek" placeholder="Contoh: 060123456"
+                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <p id="create_nip_pendek_err" class="text-xs text-red-500 mt-1 hidden font-medium">NIP Pendek harus diisi dengan angka (tepat 9 digit).</p>
+        </div>
+        <div>
+            <label for="create_nip" class="block text-sm font-medium text-gray-700 dark:text-gray-300">NIP Panjang
+                (Opsional)</label>
+            <input type="text" name="nip" id="create_nip" placeholder="Contoh: 199512282015121001"
+                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <p id="create_nip_err" class="text-xs text-red-500 mt-1 hidden font-medium">NIP Panjang harus diisi dengan angka (tepat 18 digit).</p>
+        </div>
+    </div>
+    <div>
+        <label for="create_seksi" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Seksi
+            (Opsional)</label>
+        <select name="seksi" id="create_seksi"
+            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">-- Pilih Seksi --</option>
+            {% for s in seksi_list %}
+            <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="create_jabatan" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Jabatan
+            (Opsional)</label>
+        <select name="jabatan" id="create_jabatan"
+            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">-- Pilih Jabatan --</option>
+            {% for j in jabatan_list %}
+            <option value="{{ j }}">{{ j }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+<div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row-reverse gap-2.5 sm:gap-3">
+    {{ btn('Simpan Pegawai', variant='primary', type='submit', id='create_submit_btn', extra_class='w-full sm:w-auto') }}
+    <button type="button" onclick="document.getElementById('createEmployeeModal').classList.add('hidden')"
+        class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Batal</button>
+</div>
+{% endcall %}
+
+<!-- Modal Edit Pegawai -->
+<div id="editEmployeeModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="edit-modal-title"
+    role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"
+            onclick="document.getElementById('editEmployeeModal').classList.add('hidden')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div
+            class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+            <form action="/employees/update" method="POST">
+                <!-- Hidden input berisi ID pegawai yang akan diedit -->
+                <input type="hidden" name="employee_id" id="edit_employee_id" value="">
+                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">Edit Data Pegawai</h3>
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label for="edit_name"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nama Pegawai <span
+                                    class="text-red-500">*</span></label>
+                            <input type="text" name="name" id="edit_name" required placeholder="Contoh: Budi Santoso"
+                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="edit_nip_pendek"
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300">NIP
+                                    Pendek</label>
+                                <input type="text" name="nip_pendek" id="edit_nip_pendek" placeholder="Contoh: 060123456"
+                                    class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <p id="edit_nip_pendek_err" class="text-xs text-red-500 mt-1 hidden font-medium">NIP Pendek harus diisi dengan angka (tepat 9 digit).</p>
+                            </div>
+                            <div>
+                                <label for="edit_nip"
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300">NIP Panjang
+                                    (Opsional)</label>
+                                <input type="text" name="nip" id="edit_nip" placeholder="Contoh: 199512282015121001"
+                                    class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <p id="edit_nip_err" class="text-xs text-red-500 mt-1 hidden font-medium">NIP Panjang harus diisi dengan angka (tepat 18 digit).</p>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="edit_seksi"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300">Seksi
+                                (Opsional)</label>
+                            <select name="seksi" id="edit_seksi"
+                                class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">-- Pilih Seksi --</option>
+                                {% for s in seksi_list %}
+                                <option value="{{ s }}">{{ s }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="edit_jabatan"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300">Jabatan
+                                (Opsional)</label>
+                            <select name="jabatan" id="edit_jabatan"
+                                class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">-- Pilih Jabatan --</option>
+                                {% for j in jabatan_list %}
+                                <option value="{{ j }}">{{ j }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row-reverse gap-2.5 sm:gap-3">
+                        <button type="submit" id="edit_submit_btn"
+                            class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">Simpan Perubahan</button>
+                        <button type="button"
+                            onclick="document.getElementById('editEmployeeModal').classList.add('hidden')"
+                            class="w-full sm:w-auto inline-flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Batal</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentEmployeePage = 1;
+    let employeePageSize = 15;
+
+    function renderPaginationControls(containerId, config) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const { currentPage, totalPages, totalItems, startItem, endItem, itemLabel, pageSize, onPageChange, onPageSizeChange } = config;
+
+        let pageOptionsHtml = `
+            <option value="15" ${pageSize === 15 ? 'selected' : ''}>15 / hal</option>
+            <option value="30" ${pageSize === 30 ? 'selected' : ''}>30 / hal</option>
+            <option value="50" ${pageSize === 50 ? 'selected' : ''}>50 / hal</option>
+            <option value="all" ${pageSize === 'all' ? 'selected' : ''}>Semua</option>
+        `;
+
+        let infoText = totalItems === 0
+            ? `Tidak ada ${itemLabel} ditemukan`
+            : `Menampilkan <span class="font-semibold text-gray-900 dark:text-white">${startItem}</span> - <span class="font-semibold text-gray-900 dark:text-white">${endItem}</span> dari <span class="font-semibold text-gray-900 dark:text-white">${totalItems}</span> ${itemLabel}`;
+
+        let pageBtnsHtml = '';
+
+        if (totalPages > 1) {
+            pageBtnsHtml += `
+                <button type="button" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}
+                    class="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    Sebelumnya
+                </button>
+            `;
+
+            for (let p = 1; p <= totalPages; p++) {
+                if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
+                    const isActive = p === currentPage;
+                    pageBtnsHtml += `
+                        <button type="button" data-page="${p}"
+                            class="px-3 py-1 text-xs border rounded-md font-semibold transition-colors ${isActive ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}">
+                            ${p}
+                        </button>
+                    `;
+                } else if (p === currentPage - 2 || p === currentPage + 2) {
+                    pageBtnsHtml += `<span class="px-1 py-1 text-xs text-gray-400">...</span>`;
+                }
+            }
+
+            pageBtnsHtml += `
+                <button type="button" data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''}
+                    class="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    Selanjutnya
+                </button>
+            `;
+        }
+
+        container.innerHTML = `
+            <div class="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-300">
+                <span>${infoText}</span>
+                <select id="${containerId}-select" class="text-xs py-1 px-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-indigo-500">
+                    ${pageOptionsHtml}
+                </select>
+            </div>
+            <div class="flex items-center gap-1">
+                ${pageBtnsHtml}
+            </div>
+        `;
+
+        const selectEl = document.getElementById(`${containerId}-select`);
+        if (selectEl) {
+            selectEl.onchange = (e) => onPageSizeChange(e.target.value);
+        }
+
+        container.querySelectorAll('button[data-page]').forEach(btn => {
+            btn.onclick = () => {
+                const pageNum = Number(btn.dataset.page);
+                if (pageNum >= 1 && pageNum <= totalPages && pageNum !== currentPage) {
+                    onPageChange(pageNum);
+                }
+            };
+        });
+    }
+
+    function filterEmployeesGrid(query) {
+        const q = (query !== undefined ? query : (document.getElementById('employeeSearchInput')?.value || '')).toLowerCase().trim();
+        const seksiVal = (document.getElementById('seksiFilter')?.value || '').toLowerCase();
+
+        const cards = Array.from(document.querySelectorAll('.employee-card'));
+        const matchedCards = cards.filter(card => {
+            const text = (card.textContent || '').toLowerCase();
+            const cardSeksi = (card.dataset.seksi || '').toLowerCase();
+
+            const matchQ = !q || text.includes(q);
+            const matchSeksi = !seksiVal || cardSeksi === seksiVal;
+            return matchQ && matchSeksi;
+        });
+
+        const totalMatched = matchedCards.length;
+        const totalPages = employeePageSize === 'all' ? 1 : Math.ceil(totalMatched / Number(employeePageSize)) || 1;
+
+        if (currentEmployeePage > totalPages) currentEmployeePage = totalPages;
+        if (currentEmployeePage < 1) currentEmployeePage = 1;
+
+        const startIdx = employeePageSize === 'all' ? 0 : (currentEmployeePage - 1) * Number(employeePageSize);
+        const endIdx = employeePageSize === 'all' ? totalMatched : Math.min(startIdx + Number(employeePageSize), totalMatched);
+
+        cards.forEach(c => c.style.display = 'none');
+        matchedCards.slice(startIdx, endIdx).forEach(c => c.style.display = '');
+
+        const noMatchDiv = document.getElementById('no-employees-match-div');
+        if (noMatchDiv) {
+            noMatchDiv.style.display = (totalMatched === 0 && cards.length > 0) ? '' : 'none';
+        }
+
+        renderPaginationControls('employee-pagination-container', {
+            currentPage: currentEmployeePage,
+            totalPages: totalPages,
+            totalItems: totalMatched,
+            startItem: totalMatched === 0 ? 0 : startIdx + 1,
+            endItem: endIdx,
+            itemLabel: 'pegawai',
+            pageSize: employeePageSize,
+            onPageChange: (newPage) => {
+                currentEmployeePage = newPage;
+                filterEmployeesGrid(document.getElementById('employeeSearchInput')?.value);
+            },
+            onPageSizeChange: (newSize) => {
+                employeePageSize = newSize === 'all' ? 'all' : Number(newSize);
+                currentEmployeePage = 1;
+                filterEmployeesGrid(document.getElementById('employeeSearchInput')?.value);
+            }
+        });
+    }
+
+    function initEmployeePagination() {
+        if (typeof filterEmployeesGrid === 'function' && document.getElementById('employee-pagination-container')) {
+            filterEmployeesGrid();
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener("DOMContentLoaded", initEmployeePagination);
+    } else {
+        initEmployeePagination();
+    }
+    document.addEventListener("htmx:afterSettle", initEmployeePagination);
+    document.addEventListener("htmx:load", initEmployeePagination);
+
+    function validateEmployeeForm(prefix) {
+        const nameEl = document.getElementById(prefix + '_name');
+        const nipPendekEl = document.getElementById(prefix + '_nip_pendek');
+        const nipEl = document.getElementById(prefix + '_nip');
+        const submitBtn = document.getElementById(prefix + '_submit_btn');
+
+        const nipPendekErr = document.getElementById(prefix + '_nip_pendek_err');
+        const nipErr = document.getElementById(prefix + '_nip_err');
+
+        let isValid = true;
+
+        if (nameEl && !nameEl.value.trim()) {
+            isValid = false;
+        }
+
+        if (nipPendekEl) {
+            const val = nipPendekEl.value.trim();
+            if (val.length > 0 && !/^\d{9}$/.test(val)) {
+                isValid = false;
+                if (nipPendekErr) nipPendekErr.classList.remove('hidden');
+                nipPendekEl.classList.add('border-red-500', 'focus:ring-red-500');
+                nipPendekEl.classList.remove('border-gray-300', 'dark:border-gray-600');
+            } else {
+                if (nipPendekErr) nipPendekErr.classList.add('hidden');
+                nipPendekEl.classList.remove('border-red-500', 'focus:ring-red-500');
+                nipPendekEl.classList.add('border-gray-300', 'dark:border-gray-600');
+            }
+        }
+
+        if (nipEl) {
+            const val = nipEl.value.trim();
+            if (val.length > 0 && !/^\d{18}$/.test(val)) {
+                isValid = false;
+                if (nipErr) nipErr.classList.remove('hidden');
+                nipEl.classList.add('border-red-500', 'focus:ring-red-500');
+                nipEl.classList.remove('border-gray-300', 'dark:border-gray-600');
+            } else {
+                if (nipErr) nipErr.classList.add('hidden');
+                nipEl.classList.remove('border-red-500', 'focus:ring-red-500');
+                nipEl.classList.add('border-gray-300', 'dark:border-gray-600');
+            }
+        }
+
+        if (submitBtn) {
+            if (isValid) {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+            }
+        }
+    }
+
+    function openEditEmployeeModalFromBtn(btn) {
+        document.getElementById('edit_employee_id').value = btn.dataset.id;
+        document.getElementById('edit_name').value = btn.dataset.name || '';
+        document.getElementById('edit_nip_pendek').value = btn.dataset.nipPendek || '';
+        document.getElementById('edit_nip').value = btn.dataset.nip || '';
+        document.getElementById('edit_seksi').value = btn.dataset.seksi || '';
+        document.getElementById('edit_jabatan').value = btn.dataset.jabatan || '';
+        document.getElementById('editEmployeeModal').classList.remove('hidden');
+        validateEmployeeForm('edit');
+    }
+
+    function openDeleteEmployeeModal(btn) {
+        document.getElementById('delete_employee_id').value = btn.dataset.id;
+        document.getElementById('delete_employee_name').innerText = btn.dataset.name;
+        document.getElementById('deleteEmployeeModal').classList.remove('hidden');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        ['create', 'edit'].forEach(function(prefix) {
+            ['name', 'nip_pendek', 'nip'].forEach(function(field) {
+                const el = document.getElementById(prefix + '_' + field);
+                if (el) {
+                    el.addEventListener('input', function() {
+                        validateEmployeeForm(prefix);
+                    });
+                    el.addEventListener('blur', function() {
+                        validateEmployeeForm(prefix);
+                    });
+                }
+            });
+            validateEmployeeForm(prefix);
+        });
+    });
+</script>
+
+<!-- Modal Hapus Pegawai -->
+<div id="deleteEmployeeModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="delete-modal-title"
+    role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"
+            onclick="document.getElementById('deleteEmployeeModal').classList.add('hidden')"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div
+            class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+            <form action="/employees/delete" method="POST">
+                <input type="hidden" name="employee_id" id="delete_employee_id" value="">
+                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div
+                            class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <span class="material-symbols-outlined text-red-600">warning</span>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white"
+                                id="delete-modal-title">
+                                Hapus Pegawai
+                            </h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    Apakah Anda yakin ingin menghapus data pegawai <strong id="delete_employee_name"
+                                        class="text-gray-800 dark:text-gray-200"></strong>? Tindakan ini tidak dapat
+                                    dibatalkan. Jika pegawai ini memegang perangkat, perangkat tersebut akan dilepas
+                                    kepemilikannya.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 sm:px-6 flex flex-col-reverse sm:flex-row-reverse gap-2.5 sm:gap-3">
+                    <button type="submit"
+                        class="w-full sm:w-auto inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm">
+                        Ya, Hapus
+                    </button>
+                    <button type="button"
+                        onclick="document.getElementById('deleteEmployeeModal').classList.add('hidden')"
+                        class="w-full sm:w-auto inline-flex justify-center rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

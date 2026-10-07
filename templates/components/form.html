@@ -1,0 +1,29 @@
+{% macro form_input(name, label, value='', type='text', required=False, placeholder='', extra_class='') %}
+<div>
+    <label for="{{ name }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        {{ label }} {% if required %}<span class="text-red-500">*</span>{% endif %}
+    </label>
+    <input type="{{ type }}" name="{{ name }}" id="{{ name }}" {% if required %}required{% endif %} value="{{ value }}" 
+           class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white {{ extra_class }}" 
+           placeholder="{{ placeholder }}">
+</div>
+{% endmacro %}
+
+{% macro form_select(name, label, options, selected_value='', required=False, placeholder='-- Pilih --', extra_class='') %}
+<div>
+    <label for="{{ name }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        {{ label }} {% if required %}<span class="text-red-500">*</span>{% endif %}
+    </label>
+    <select id="{{ name }}" name="{{ name }}" {% if required %}required{% endif %} 
+            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white {{ extra_class }}">
+        <option value="">{{ placeholder }}</option>
+        {% for option in options %}
+            {% if option is mapping %}
+                <option value="{{ option.value }}" {% if selected_value == option.value %}selected{% endif %}>{{ option.label }}</option>
+            {% else %}
+                <option value="{{ option }}" {% if selected_value == option %}selected{% endif %}>{{ option }}</option>
+            {% endif %}
+        {% endfor %}
+    </select>
+</div>
+{% endmacro %}

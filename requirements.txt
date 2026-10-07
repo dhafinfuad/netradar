@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+alembic
+jinja2
+python-multipart
+apscheduler
+icmplib
+openpyxl
+python-dotenv
+passlib[bcrypt]
+python-jose[cryptography]

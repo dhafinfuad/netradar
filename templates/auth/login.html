@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Radar - Login</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block"
+        rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="/static/js/tailwind.config.js"></script>
+    <style>
+        .bg-gradient-cyber {
+            background: linear-gradient(135deg, #0c1322 0%, #001a42 50%, #0c1322 100%);
+        }
+
+        .glass-panel {
+            background-color: rgba(12, 19, 34, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glow-active {
+            box-shadow: 0 0 15px rgba(77, 142, 255, 0.3);
+        }
+
+        .input-glass {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .input-glass:focus {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: #4d8eff;
+            outline: none;
+        }
+
+        .btn-primary-gradient {
+            background: linear-gradient(90deg, #005ac2 0%, #4d8eff 100%) !important;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary-gradient:hover {
+            box-shadow: 0 0 20px rgba(77, 142, 255, 0.6) !important;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background text-on-background min-h-screen flex flex-col antialiased selection:bg-primary-container selection:text-on-primary-container overflow-hidden">
+
+    <!-- Abstract Background -->
+    <div class="fixed inset-0 bg-gradient-cyber z-0 pointer-events-none"></div>
+    <div class="fixed inset-0 opacity-20 pointer-events-none z-0"
+        style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23adc6ff\' fill-opacity=\'0.2\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');">
+    </div>
+
+    <!-- Main Content Canvas -->
+    <main class="relative z-10 flex-grow flex flex-col items-center justify-center p-md sm:p-lg md:p-xl gap-[40px]">
+        
+        <header class="w-full flex justify-center">
+            <img src="/static/icons/netradar-logo.svg" alt="NetRadar Logo" class="h-12 w-auto">
+        </header>
+
+        <!-- Login Card -->
+        <div class="glass-panel w-full max-w-[420px] rounded-xl p-xl shadow-2xl relative overflow-hidden group">
+
+            <!-- Edge Lighting Effect -->
+            <div
+                class="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-50">
+            </div>
+            <div
+                class="absolute top-0 left-0 bottom-0 w-[1px] bg-gradient-to-b from-primary via-transparent to-transparent opacity-30">
+            </div>
+
+            {% if error_msg %}
+            <div class="mb-4 p-3 rounded-lg bg-error-container text-on-error-container border border-error/50">
+                {{ error_msg }}
+            </div>
+            {% endif %}
+
+            <form action="/login" method="POST" class="space-y-lg">
+                <!-- Username -->
+                <div class="space-y-sm">
+                    <label for="username"
+                        class="font-label-mono text-label-mono text-on-surface-variant block uppercase tracking-wider">Operator
+                        ID</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none">
+                            <span class="material-symbols-outlined text-outline">person</span>
+                        </div>
+                        <input type="text" id="username" name="username" required=""
+                            class="input-glass w-full pl-[48px] pr-md py-[12px] rounded-lg font-body-base text-body-base text-on-surface placeholder-outline-variant focus:ring-0"
+                            placeholder="e.g. sys_admin_01">
+                    </div>
+                </div>
+
+                <!-- Password -->
+                <div class="space-y-sm">
+                    <div class="flex justify-between items-center">
+                        <label for="password"
+                            class="font-label-mono text-label-mono text-on-surface-variant block uppercase tracking-wider">Access
+                            Key</label>
+                    </div>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none">
+                            <span class="material-symbols-outlined text-outline">key</span>
+                        </div>
+                        <input type="password" id="password" name="password" required=""
+                            class="input-glass w-full pl-[48px] pr-md py-[12px] rounded-lg font-body-base text-body-base text-on-surface placeholder-outline-variant focus:ring-0"
+                            placeholder="••••••••••••">
+                    </div>
+                </div>
+
+                <!-- Action -->
+                <div class="pt-sm">
+                    <button type="submit"
+                        class="w-full bg-gradient-to-r from-[#005ac2] to-[#4d8eff] hover:from-[#004cb5] hover:to-[#3b7ff0] btn-primary-gradient rounded-lg py-[14px] px-lg font-body-base text-body-base font-semibold text-white flex justify-center items-center gap-sm shadow-lg shadow-blue-500/25 transition-all duration-300">
+                        <span class="">Initialize Protocol</span>
+                        <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Security Badge -->
+            <div
+                class="mt-xl flex items-center justify-center gap-sm text-on-surface-variant/60 font-caption text-caption">
+                <span class="material-symbols-outlined text-[16px]">lock</span>
+                <span class="">End-to-End Encrypted Connection</span>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

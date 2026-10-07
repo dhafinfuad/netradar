@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>{% block title %}IP Radar Dashboard{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/icons/netradar-icon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="preload" href="/static/fonts/material-symbols-outlined.woff2" as="font" type="font/woff2" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
+        rel="stylesheet" />
+
+    <script src="/static/js/tailwind.config.js"></script>
+    <style>
+        @font-face {
+            font-family: 'Material Symbols Outlined';
+            font-style: normal;
+            font-weight: 100 700;
+            src: url('/static/fonts/material-symbols-outlined.woff2') format('woff2');
+            font-display: block;
+        }
+
+        body {
+            background-color: #060a14;
+            color: #dce2f7;
+        }
+
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+            /* Prevent text flash by forcing color transparent if fallback font is used */
+            font-display: block;
+        }
+
+        .bg-gradient-cyber {
+            background: linear-gradient(135deg, #060a14 0%, #000d24 50%, #060a14 100%);
+        }
+
+        .glass-panel {
+            background-color: rgba(12, 19, 34, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background-color: #c0c7d299;
+            border-radius: 9999px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #717881b3;
+        }
+
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #c0c7d299 transparent;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* HTMX Transition Animations */
+        .htmx-swapping {
+            opacity: 0.2;
+            transition: opacity 120ms ease-out;
+        }
+
+        .htmx-settling {
+            opacity: 1;
+            transition: opacity 120ms ease-in;
+        }
+
+            {
+            % block extra_css %
+        }
+
+            {
+            % endblock %
+        }
+    </style>
+</head>
+
+<body hx-boost="true"
+    class="font-body-base text-body-base bg-background text-on-surface antialiased min-h-screen flex flex-col relative">
+    <!-- Abstract Background -->
+    <div class="fixed inset-0 bg-gradient-cyber -z-10 pointer-events-none"></div>
+    <div class="fixed inset-0 opacity-10 pointer-events-none -z-10"
+        style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23adc6ff\' fill-opacity=\'0.2\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');">
+    </div>
+
+    <!-- Top Progress Bar for Livewire/SPA feel -->
+    <div id="loading-bar"
+        class="fixed top-0 left-0 right-0 h-1 bg-indigo-500 z-50 transition-all duration-300 opacity-0 pointer-events-none w-0">
+    </div>
+
+    {% set toast_msg = request.query_params.get('msg') %}
+    {% set toast_err = request.query_params.get('error') %}
+    {% if toast_msg or toast_err %}
+    <div id="toast-notification"
+        class="fixed bottom-5 left-4 right-4 sm:bottom-auto sm:top-20 sm:left-auto sm:right-5 z-50 flex items-center p-4 text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border {% if toast_err %}border-red-500/50{% else %}border-emerald-500/50{% endif %} transition-all duration-300 transform translate-y-0 opacity-100 max-w-sm mx-auto sm:mx-0">
+        <div
+            class="inline-flex items-center justify-center flex-shrink-0 w-9 h-9 {% if toast_err %}text-red-500 bg-red-100 dark:bg-red-900/40{% else %}text-emerald-500 bg-emerald-100 dark:bg-emerald-900/40{% endif %} rounded-lg">
+            {% if toast_err %}
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            {% else %}
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            {% endif %}
+        </div>
+        <div class="ml-3 text-sm font-medium pr-3">
+            {{ toast_err or toast_msg }}
+        </div>
+        <button type="button" onclick="dismissToast()"
+            class="ml-auto -mx-1.5 -my-1.5 bg-transparent text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg p-1.5 inline-flex h-8 w-8 items-center justify-center">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+    <script>
+        function dismissToast() {
+            const toast = document.getElementById('toast-notification');
+            if (toast) {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(12px)';
+                setTimeout(() => { if (toast) toast.remove(); }, 350);
+            }
+        }
+        setTimeout(dismissToast, 4000);
+    </script>
+    {% endif %}
+
+    <!-- TopAppBar -->
+    {% include 'components/navbar.html' %}
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col w-full h-full">
+        <div class="flex-1 w-full px-3 sm:px-gutter lg:px-xl py-md pt-5 sm:pt-8 max-w-container-max mx-auto">
+            {% block content %}{% endblock %}
+
+            <footer class="w-full py-md border-t border-white/5 flex justify-between items-center mt-xl">
+                <p class="font-caption text-caption text-on-surface-variant font-label-mono text-label-mono">© 2026 IP
+                    Radar. All Rights Reserved.</p>
+            </footer>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('htmx:configRequest', function () {
+            const bar = document.getElementById('loading-bar');
+            if (bar) {
+                bar.style.width = '40%';
+                bar.style.opacity = '1';
+            }
+        });
+        document.addEventListener('htmx:beforeSwap', function () {
+            const bar = document.getElementById('loading-bar');
+            if (bar) {
+                bar.style.width = '80%';
+            }
+        });
+        document.addEventListener('htmx:afterSettle', function () {
+            const bar = document.getElementById('loading-bar');
+            if (bar) {
+                bar.style.width = '100%';
+                setTimeout(() => {
+                    bar.style.opacity = '0';
+                    bar.style.width = '0%';
+                }, 200);
+            }
+        });
+    </script>
+
+    <!-- Go to Top Button -->
+    <button id="goToTopBtn"
+        class="fixed bottom-6 right-6 z-50 w-11 h-11 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full shadow-xl transition-all duration-300 opacity-0 pointer-events-none flex items-center justify-center border border-white/20 hover:scale-110 active:scale-95"
+        onclick="window.scrollTo({top: 0, behavior: 'smooth'}); document.documentElement.scrollTo({top: 0, behavior: 'smooth'});" title="Kembali ke atas">
+        <span class="material-symbols-outlined text-[24px]">keyboard_arrow_up</span>
+    </button>
+
+    <script>
+        // Go to Top Button Logic
+        (function() {
+            const goToTopBtn = document.getElementById('goToTopBtn');
+            if (!goToTopBtn) return;
+
+            function handleScroll() {
+                const scrollPos = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+                if (scrollPos > 100) {
+                    goToTopBtn.classList.remove('opacity-0', 'pointer-events-none');
+                    goToTopBtn.classList.add('opacity-100', 'pointer-events-auto');
+                } else {
+                    goToTopBtn.classList.add('opacity-0', 'pointer-events-none');
+                    goToTopBtn.classList.remove('opacity-100', 'pointer-events-auto');
+                }
+            }
+
+            window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+            document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+            document.addEventListener('DOMContentLoaded', handleScroll);
+            window.addEventListener('load', handleScroll);
+            handleScroll();
+        })();
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

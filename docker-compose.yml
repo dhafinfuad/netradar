@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  ipradar:
+    build: .
+    container_name: ipradar_app
+    restart: always
+    # PENTING: Gunakan network_mode: "host" agar scanner ARP bisa membaca MAC Address perangkat di jaringan lokal
+    network_mode: "host"
+    env_file:
+      - .env
+    volumes:
+      - .:/app

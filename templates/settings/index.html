@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% from 'components/button.html' import btn %}
+{% from 'components/status.html' import status_badge %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <span class="material-symbols-outlined text-[32px] text-indigo-600 dark:text-indigo-400">settings</span>
+            Konfigurasi Sistem
+        </h1>
+        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Kelola pengaturan lingkungan sistem, daftar Seksi, alokasi IP, dan lihat log aktivitas pemindaian jaringan.
+        </p>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto no-scrollbar">
+        <nav class="-mb-px flex space-x-4 sm:space-x-8 min-w-max" aria-label="Tabs">
+            <button onclick="switchTab('umum')" id="tab-umum"
+                class="tab-btn whitespace-nowrap py-3.5 sm:py-4 px-1 border-b-2 border-indigo-500 font-medium text-xs sm:text-sm text-indigo-600 dark:text-indigo-400">
+                <div class="flex items-center gap-1.5 sm:gap-2">
+                    <span class="material-symbols-outlined text-[18px]">tune</span>
+                    Pengaturan Umum
+                </div>
+            </button>
+            <button onclick="switchTab('seksi')" id="tab-seksi"
+                class="tab-btn whitespace-nowrap py-3.5 sm:py-4 px-1 border-b-2 border-transparent font-medium text-xs sm:text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300">
+                <div class="flex items-center gap-1.5 sm:gap-2">
+                    <span class="material-symbols-outlined text-[18px]">domain</span>
+                    Seksi & Range IP
+                </div>
+            </button>
+            <button onclick="switchTab('logs')" id="tab-logs"
+                class="tab-btn whitespace-nowrap py-3.5 sm:py-4 px-1 border-b-2 border-transparent font-medium text-xs sm:text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300">
+                <div class="flex items-center gap-1.5 sm:gap-2">
+                    <span class="material-symbols-outlined text-[18px]">list_alt</span>
+                    Log Scan Jaringan
+                </div>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Tab Content: Umum -->
+    <div id="content-umum" class="tab-content block">
+        <div
+            class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Environment Variables (.env)
+                </h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Perubahan pada pengaturan ini akan langsung
+                    disimpan ke file sistem.</p>
+            </div>
+            <div class="px-6 py-5">
+                <form action="/admin/settings/env" method="POST" class="space-y-6">
+                    <div>
+                        <label for="ping_interval"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300">Interval Ping Otomatis
+                            (Menit)</label>
+                        <div class="mt-1 flex rounded-md shadow-sm">
+                            <input type="number" name="ping_interval" id="ping_interval" value="{{ ping_interval }}"
+                                min="1" max="1440" required
+                                class="flex-1 min-w-0 block w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Jadwal seberapa sering sistem akan
+                            melakukan ping ke seluruh perangkat.</p>
+                    </div>
+
+                    <div>
+                        <label for="script_token"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300">Script API Token</label>
+                        <div class="mt-1 flex rounded-md shadow-sm">
+                            <input type="text" name="script_token" id="script_token" value="{{ script_token }}" required
+                                class="flex-1 min-w-0 block w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Token rahasia ini diperlukan oleh
+                            script PowerShell di komputer klien untuk mengirim data ke server IP Radar.</p>
+                    </div>
+
+                    <div class="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                        {{ btn('Simpan Pengaturan Umum', type='submit', icon='<path stroke-linecap="round"
+                            stroke-linejoin="round" stroke-width="2"
+                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                        </path>') }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Content: Seksi & IP Ranges -->
+    <div id="content-seksi" class="tab-content hidden">
+        <div
+            class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col min-h-[500px]">
+            <div
+                class="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+                <div>
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Alokasi IP & Urutan Seksi
+                    </h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Tentukan jumlah IP (kuota) untuk
+                        masing-masing seksi. Drag (tarik) ikon di sebelah kiri untuk mengubah urutan prioritas alokasi
+                        IP.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Base IP Network:</label>
+                    <input type="text" id="baseIpInput" value="10.12.13"
+                        class="w-28 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-center shadow-sm">
+                </div>
+            </div>
+
+            <div class="flex-1 bg-white dark:bg-gray-800 p-0 overflow-y-auto">
+                <div
+                    class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 flex text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-white dark:bg-gray-800 sticky top-0 z-10">
+                    <div class="w-10"></div>
+                    <div class="flex-1">Nama Seksi / Perangkat</div>
+                    <div class="w-32 text-center">Jumlah IP</div>
+                    <div class="w-56 text-right">Preview Range (Otomatis)</div>
+                </div>
+                <form id="seksiForm">
+                    <ul id="seksiContainer"
+                        class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800 pb-20">
+                        <!-- Rows injected via JS -->
+                    </ul>
+                </form>
+            </div>
+
+            <div
+                class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                <button type="button" onclick="saveSeksiConfig()" id="btnSaveSeksi"
+                    class="inline-flex justify-center items-center py-2 px-4 border shadow-sm text-sm font-medium rounded-lg focus:outline-none focus:ring-2 transition-colors duration-200 border-blue-700 dark:border-blue-700 text-blue-800 dark:text-blue-200 bg-blue-900 dark:bg-blue-900/60 hover:bg-blue-600 dark:hover:bg-blue-700/60 focus:ring-indigo-500">
+                    <span class="material-symbols-outlined text-[18px] mr-2">save</span>
+                    Simpan & Kalkulasi Alokasi IP
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Content: Log Scan -->
+    <div id="content-logs" class="tab-content hidden">
+        <div
+            class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Riwayat Auto-Ping (Scan Logs)
+                </h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Menampilkan 50 aktivitas pemindaian otomatis
+                    terakhir.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-900/50">
+                        <tr>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Waktu Pemindaian</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Metode</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Target Jaringan</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Total Diping</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Merespon (Online)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for log in scan_logs %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                {{ log.scanned_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {% if log.scan_type == 'auto' %}
+                                <span
+                                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Otomatis
+                                    (Jadwal)</span>
+                                {% else %}
+                                <span
+                                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Manual
+                                    User</span>
+                                {% endif %}
+                            </td>
+                            <td
+                                class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-mono text-xs">
+                                {{ log.network_target }}
+                            </td>
+                            <td
+                                class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-center">
+                                {{ log.total_scanned }}
+                            </td>
+                            <td
+                                class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600 dark:text-green-400 text-center">
+                                {{ log.online_count }}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                Belum ada riwayat pemindaian. Pemindaian pertama akan berjalan sesuai jadwal interval.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Tab switching logic
+    function switchTab(tabId) {
+        // Update tab styling
+        document.querySelectorAll('.tab-btn').forEach(el => {
+            el.classList.remove('border-indigo-500', 'text-indigo-600', 'dark:text-indigo-400');
+            el.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+        });
+
+        const activeTab = document.getElementById('tab-' + tabId);
+        activeTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+        activeTab.classList.add('border-indigo-500', 'text-indigo-600', 'dark:text-indigo-400');
+
+        // Update content visibility
+        document.querySelectorAll('.tab-content').forEach(el => {
+            el.classList.add('hidden');
+            el.classList.remove('block');
+        });
+
+        document.getElementById('content-' + tabId).classList.remove('hidden');
+        document.getElementById('content-' + tabId).classList.add('block');
+    }
+
+    // Dynamic Seksi Configuration
+    var seksiData = {{ seksi_ranges | tojson | safe }};
+    var defaultOrder = [
+        "Kepala Kantor",
+        "Seksi Pelayanan",
+        "Seksi Pemeriksaan, Penilaian, dan Penagihan",
+        "Seksi Penjaminan Kualitas Data",
+        "Seksi Pengawasan I",
+        "Seksi Pengawasan II",
+        "Seksi Pengawasan III",
+        "Seksi Pengawasan IV",
+        "Seksi Pengawasan V",
+        "Seksi Pengawasan VI",
+        "Fungsional Pemeriksa",
+        "Subbagian Umum dan Kepatuhan Internal",
+        "Printer",
+        "Server",
+        "Jaringan"
+    ];
+
+    var basePrefix = '10.12.13';
+    for (const val of Object.values(seksiData)) {
+        if (val && val.includes('-')) {
+            const parts = val.split('-');
+            const ipParts = parts[0].split('.');
+            ipParts.pop();
+            basePrefix = ipParts.join('.');
+            break;
+        }
+    }
+    document.getElementById('baseIpInput').value = basePrefix;
+
+    function getCountFromRange(rangeStr) {
+        if (!rangeStr) return 0;
+        const parts = rangeStr.split('-');
+        if (parts.length !== 2) return 0;
+        const start = parseInt(parts[0].split('.').pop());
+        const end = parseInt(parts[1].split('.').pop());
+        return end >= start ? (end - start + 1) : 0;
+    }
+
+    var container = document.getElementById('seksiContainer');
+    var draggedItem = null;
+
+    function createRowHTML(name, count) {
+        const id = 'row_' + Math.random().toString(36).substr(2, 9);
+        return `
+            <li id="${id}" class="seksi-row px-6 py-4 flex items-center bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors" draggable="true">
+                <div class="w-10 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 drag-handle flex items-center justify-center">
+                    <span class="material-symbols-outlined select-none">drag_indicator</span>
+                </div>
+                <div class="flex-1 font-medium text-gray-900 dark:text-white seksi-name" data-name="${name}">
+                    ${name}
+                </div>
+                <div class="w-32 flex justify-center">
+                    <div class="flex items-center gap-2">
+                        <input type="number" class="seksi-count w-16 px-2 py-1 rounded-md border border-gray-300 dark:border-gray-600 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-center font-mono focus:ring-indigo-500 focus:border-indigo-500" min="0" max="254" value="${count}" oninput="updatePreviews()">
+                    </div>
+                </div>
+                <div class="w-56 text-right font-mono text-sm text-indigo-600 dark:text-indigo-400 seksi-preview font-semibold tabular-nums">
+                    -
+                </div>
+            </li>
+        `;
+    }
+
+    function initSeksiData() {
+        // Find existing entries and order them based on their saved IP range
+        const sortedExistingEntries = Object.entries(seksiData).sort((a,b) => {
+            if (!a[1] || !a[1].includes('-')) return 0;
+            if (!b[1] || !b[1].includes('-')) return 0;
+            const startA = a[1].split('-')[0].split('.').pop();
+            const startB = b[1].split('-')[0].split('.').pop();
+            return parseInt(startA) - parseInt(startB);
+        });
+        
+        const savedOrder = sortedExistingEntries.map(e => e[0]);
+        
+        // Find default items that haven't been saved yet (or have 0 allocation)
+        const unsavedDefaults = defaultOrder.filter(n => !savedOrder.includes(n));
+        
+        // Final order: Saved items (in their correct saved order), followed by unused defaults
+        const fullOrder = [...savedOrder, ...unsavedDefaults];
+
+        let html = '';
+        fullOrder.forEach(name => {
+            const range = seksiData[name] || '';
+            const count = getCountFromRange(range);
+            html += createRowHTML(name, count);
+        });
+        container.innerHTML = html;
+        setupDragAndDrop();
+        updatePreviews();
+    }
+
+    function updatePreviews() {
+        const base = document.getElementById('baseIpInput').value.trim();
+        let currentStart = 1;
+        const rows = document.querySelectorAll('.seksi-row');
+
+        rows.forEach(row => {
+            const countInput = row.querySelector('.seksi-count');
+            const previewEl = row.querySelector('.seksi-preview');
+            const count = parseInt(countInput.value) || 0;
+
+            if (count > 0) {
+                const end = currentStart + count - 1;
+                if (end > 254) {
+                    previewEl.textContent = 'Melebihi limit (254)';
+                    previewEl.classList.add('text-red-500');
+                    previewEl.classList.remove('text-indigo-600', 'dark:text-indigo-400', 'text-gray-400');
+                } else {
+                    previewEl.textContent = `${base}.${currentStart} - ${base}.${end}`;
+                    previewEl.classList.remove('text-red-500', 'text-gray-400');
+                    previewEl.classList.add('text-indigo-600', 'dark:text-indigo-400');
+                    currentStart = end + 1;
+                }
+            } else {
+                previewEl.textContent = 'Tidak Dialokasikan';
+                previewEl.classList.remove('text-red-500', 'text-indigo-600', 'dark:text-indigo-400');
+                previewEl.classList.add('text-gray-400');
+            }
+        });
+    }
+
+    document.getElementById('baseIpInput').addEventListener('input', updatePreviews);
+
+    function setupDragAndDrop() {
+        const rows = document.querySelectorAll('.seksi-row');
+
+        rows.forEach(row => {
+            row.addEventListener('dragstart', function (e) {
+                draggedItem = row;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', row.innerHTML);
+                setTimeout(() => row.classList.add('opacity-50', 'bg-indigo-50', 'dark:bg-indigo-900/30'), 0);
+            });
+
+            row.addEventListener('dragend', function () {
+                setTimeout(() => row.classList.remove('opacity-50', 'bg-indigo-50', 'dark:bg-indigo-900/30'), 0);
+                draggedItem = null;
+                updatePreviews();
+            });
+
+            row.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const bounding = row.getBoundingClientRect();
+                const offset = bounding.y + (bounding.height / 2);
+                if (e.clientY - offset > 0) {
+                    row.style.borderBottom = "2px solid #6366f1";
+                    row.style.borderTop = "";
+                } else {
+                    row.style.borderTop = "2px solid #6366f1";
+                    row.style.borderBottom = "";
+                }
+            });
+
+            row.addEventListener('dragleave', function () {
+                row.style.borderTop = "";
+                row.style.borderBottom = "";
+            });
+
+            row.addEventListener('drop', function (e) {
+                e.preventDefault();
+                row.style.borderTop = "";
+                row.style.borderBottom = "";
+                if (draggedItem && row !== draggedItem) {
+                    const bounding = row.getBoundingClientRect();
+                    const offset = bounding.y + (bounding.height / 2);
+                    if (e.clientY - offset > 0) {
+                        row.after(draggedItem);
+                    } else {
+                        row.before(draggedItem);
+                    }
+                }
+            });
+        });
+    }
+
+    initSeksiData();
+
+    async function saveSeksiConfig() {
+        const btn = document.getElementById('btnSaveSeksi');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px] mr-2">refresh</span> Menyimpan...';
+        btn.disabled = true;
+
+        const base = document.getElementById('baseIpInput').value.trim();
+        const result = {};
+        const rows = container.querySelectorAll('.seksi-row');
+
+        let currentStart = 1;
+        let hasError = false;
+
+        rows.forEach(row => {
+            const name = row.querySelector('.seksi-name').dataset.name;
+            const count = parseInt(row.querySelector('.seksi-count').value) || 0;
+
+            if (count > 0) {
+                const end = currentStart + count - 1;
+                if (end > 254) {
+                    hasError = true;
+                }
+                result[name] = `${base}.${currentStart}-${base}.${end}`;
+                currentStart = end + 1;
+            }
+        });
+
+        if (hasError) {
+            alert("Gagal: Total alokasi IP melebihi limit subnet (254). Silakan kurangi jumlah IP.");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            return;
+        }
+
+        try {
+            const response = await fetch('/admin/settings/seksi/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(result)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                window.location.href = `/admin/settings?msg=${encodeURIComponent(data.message)}`;
+            } else {
+                alert("Gagal menyimpan konfigurasi seksi.");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        } catch (e) {
+            alert("Terjadi kesalahan jaringan.");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+</script>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-5px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+{% endblock %}
